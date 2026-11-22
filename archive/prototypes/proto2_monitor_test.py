@@ -1,5 +1,5 @@
 import math, statistics
-from blackout_sim import run, peak
+from proto2_ekf_faults_monitor import run, peak
 R = 1.0
 CASES = {"no sensor fault": dict(), "gyro drift +1deg/s in blackout": dict(bias_late=math.radians(1.0)),
          "wheels both +3%": dict(epsR=0.03, epsL=0.03)}
