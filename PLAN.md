@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Version** | rev 3.3, 2026-11-23 (rev 3.2 plus two M1 verification fixes: boxcar gyro output and EKF bias process noise) |
-| **Status** | **M1 passed** except V9 (Codex) and V8 (M4). Simulator in `sim/` (modules). Scored runs (A, CAL, B0) are **provisional until V9 passes**. Run history: §20 |
+| **Status** | **M2 core results in** (Part A, CAL, B0): P1–P4 supported, H1a 3/4, H1b 13/18, H1c 18/18. M1 passed except V9 (Codex) and V8 (M4), so every result is **provisional until V9 passes**. Next: B, C, D, S after review. Run history: §20 |
 | **People** | Pushkar: PI, paper, viva · Claude: simulator, experiments, analysis, firmware · Codex: independent review, reference implementation |
 | **Course** | DSEU BT-PR701 Project-I (4 credits). Target: a 6-page IEEE-format workshop paper |
 | **Data** | 100% simulated, seeded, reproducible. Never presented as measured |
@@ -375,6 +375,7 @@ Total: about 10,000 scored runs plus no-loss references. In a Web Worker that's 
 | $e(t)$ | Signed distance from the **true** pose to the continuous route (left = +) | mm | all |
 | $e_{pk}$, $e_{ex}$ | $\max_W\lvert e\rvert$; $e_{pk}-e_{pk}^{ref}$ | mm | A, B0, B, C (primary for policy and drift claims) |
 | $e_{sgn}$ | e at the argmax: rack side or aisle side | mm | B |
+| $e_{dev}$ (secondary, post hoc, rev 3.4) | Path-aligned deviation $\max_W\lvert e(s)-e^{ref}(s)vert$. Comparable with the §6 drift formulas; $e_{ex}$ isn't, because a baseline peak of opposite sign cancels part of the drift | mm | B0, C |
 | breach | $\mathbb 1[\max_W\lvert e\rvert>30\,\mathrm{mm}]$ on absolute error | — | B0, B |
 | $T_{surv}$ | First breach time minus $t_f$ | s | B, C |
 | $\hat e_{pk}$ | $\max_W\lVert\hat p-p\rVert$ | mm | A |
@@ -496,10 +497,11 @@ co_res/
 │   ├── serve.py                  [x] M1  local server; POST /save writes only into results/
 │   └── run_experiment.mjs        [ ] M2  same grids from a terminal (Node; for Codex cloud)
 ├── analysis/                     Python; reads results/ only, never re-simulates
-│   ├── common.py                 [ ] M2  loaders, paired bootstrap, permutation, TOST, Holm
+│   ├── common.py                 [x] M2  loaders, paired bootstrap, permutation, TOST, Holm
+│   ├── hypothesis_tests.py       [x] M2  H1a-c (A), CAL freeze rule, P1-P4 (B0) -> results/<exp>/tests.csv
 │   ├── reference_check.py        [ ] M1  Codex: independent EKF + monitor replay (V9)
 │   ├── allan.py                  [x] M3  V6
-│   ├── fig_<topic>.py            [ ] M2-M3  one script per figure (§10)
+│   ├── fig_<topic>.py            [~] M2-M3  done: fig_estimators_short_gaps (F5), fig_policy_tradeoff (F2), fig_threshold_window (F4); rest M3
 │   ├── make_tables.py            [ ] M3
 │   └── make_all.py               [ ] M3  regenerates every figure and table
 ├── results/                      generated, committed; one folder per experiment (§7)
@@ -876,3 +878,29 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - v2's floor (0.32°) sits at the encoder-quantization bound (0.33°, §6.8), so h could later go down to about 0.45° for faster detection. h stays at 0.6° as pre-registered.
   - Cost of v2: persistent wheel faults are absorbed into o. The ±1% fault no longer triggers SA (§6.3's prediction SA = SB is now SA = N), and +3% appears only when the turn rate changes.
   - **Frozen for scored runs at this commit:** h = 0.6°, $T_w$ = 2 s, g = 0.3 s, $\tau_m$ = 10 s, $q_b$ = (3e-4)².
+
+**2026-11-23 · Claude · B0 run (primary experiment; PROVISIONAL until V9)**
+- **What:** 960 runs: R = 1 m, v = 0.5 m/s, $L_d$ = 0.30; $T_b$ {2, 4} s × onset {entry, mid} × {healthy, +1°/s gyro at onset + 0.5 s} × {N, SB, SA, SO} × scored seeds 1–30. Monitor frozen at commit `9d3de25`. Tests P1–P4 with `analysis/hypothesis_tests.py B0`. After the tests, B0 was re-run once with a secondary metric added (`devPeak`, path-aligned deviation). Every pre-registered column was **bit-identical** after the rerun.
+- **Why:** RQ3, the paper's main claim. Is selective slowdown (SA) as safe as blanket slowdown (SB), and does it save time?
+- **Where:** `results/b0_policy_primary/` (`runs.csv`, `tests.csv`, `summary_medians.csv`); `figures/fig_policy_tradeoff.*` (F2, main) and `figures/fig_threshold_window.*` (F4). Code: `sim/metrics.js` (`devPeak`), `analysis/fig_policy_tradeoff.py`, `analysis/fig_threshold_window.py`.
+- **Result, primary cell** ($T_b$ = 4 s, entry onset; paired over 30 seeds, Holm across P1–P3):
+
+  | Test | Contrast | Measured [95% CI] | §6.9 prediction | Verdict |
+  |---|---|---|---|---|
+  | **P1** | SA − SB peak excess, fault | **−0.19 mm** [−0.51, +0.19] | +1.1 mm | Non-inferior (upper bound < 5 mm) |
+  | **P2** | SB − SA completion time, healthy | **+2.60 s** [2.60, 2.60] | +2.59 s | Supported |
+  | **P3** | N − SA peak excess, fault | **+31.1 mm** [28.4, 33.8] | +36.4 mm | Supported |
+  | **P4** | False alarms, healthy | **0/120** (upper bound 2.5%) | 0 | Supported |
+
+- **Result, all cells:**
+  - **Corridor breaches** (|e| > 30 mm), 4 s blackouts with the fault: N 100% (entry) and 97% (mid). SA, SB and SO 0% (entry) and 10–13% (mid).
+  - **2 s blackouts:** every arm stays under 2 mm excess, so slowing buys nothing there and SB still costs 1.2 s per blackout. This matches §6.9's "below ≈ 3.1 s, N stays inside".
+  - **Alarm delay:** median 0.50–0.54 s (predicted 0.60 s), always before camera return.
+  - **Time lost, predicted vs. measured:** SB healthy 2.59 / 2.60 s; SA fault 2.03 / 2.04–2.10 s; SO fault 2.45 / 2.46 s; SB at 2 s 1.19 / 1.20 s.
+  - **Formula check on $e_{dev}$:** at mid onset N 50.5, SA 17.2, SB 16.8, SO 16.9 mm against 53.5 / 17.1 / 16.0 / 16.0 predicted (**1–6%**). At entry onset N 43.6, SA 11.3, SB 13.7, SO 13.3 mm, overpredicted by 15–34%.
+- **Meaning:**
+  1. **Headline (provisional):** gating the slowdown on gyro–encoder disagreement keeps the safety of slowing on every blackout (SA − SB = −0.2 mm, CI inside ±0.6 mm). It loses no time on healthy blackouts, while SB loses 2.6 s per 4 s blackout.
+  2. The closed-form model predicts the time costs to within about 1%, and the error to within 6% when fault exposure isn't spent on the arc.
+  3. **[FLAG] The pre-registered $e_{ex}$ isn't the right metric for formula checks.** A ~10 mm corner-cutting peak in the no-loss reference has the opposite sign to the fault drift and cancels part of it. The paper keeps $e_{ex}$ for P1–P3 and uses $e_{dev}$ for H3, labelled post hoc.
+  4. **Curvature effect (new):** at entry onset the 3.5 s exposure is spent on the arc, and the straight-path formula overpredicts by 15–34%. A curved-path correction to §6.3 is a natural extension.
+  5. **What we can't claim yet:** independent replication (V9, Codex) and the B, C, D, S grids.

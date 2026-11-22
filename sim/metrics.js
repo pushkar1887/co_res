@@ -22,13 +22,28 @@ export function score(run, ref, W, tF) {
   }
   let refPeak = NaN;
   if (ref) { refPeak = 0; for (let i = 0; i < ref.log.t.length; i++) if (inW(ref.log.t[i])) refPeak = Math.max(refPeak, Math.abs(ref.log.e[i])); }
+  // Secondary (post hoc, PLAN §20): path-aligned deviation from the reference, max |e_run(s) - e_ref(s)| over W.
+  // Compares the two runs at the same route position, so it is comparable with the §6 drift formulas.
+  let devPeak = NaN, devSigned = NaN;
+  if (ref) {
+    const rs = ref.log.s, re = ref.log.e, rt = ref.log.t;
+    let j = 0; devPeak = 0;
+    for (let i = 0; i < L.t.length; i++) {
+      if (!inW(L.t[i])) continue;
+      const s = L.s[i];
+      while (j < rs.length - 2 && (rs[j + 1] < s || rt[j + 1] <= p.tStill)) j++;
+      const s0 = rs[j], s1 = rs[j + 1], w = s1 > s0 ? Math.min(Math.max((s - s0) / (s1 - s0), 0), 1) : 0;
+      const d = L.e[i] - (re[j] + w * (re[j + 1] - re[j]));
+      if (Math.abs(d) > devPeak) { devPeak = Math.abs(d); devSigned = d; }
+    }
+  }
   let jump = 0; for (const [t, j] of run.steerJumps) if (inW(t)) jump = Math.max(jump, j);
   const alarmsW = run.alarmOn.filter(inW);
   const firstAfterFault = isFinite(tF) ? run.alarmOn.find((t) => t >= tF - 1e-9 && (W.tRet === undefined || t < W.tRet + 1e-9)) : undefined;
   const truncated = isFinite(W.t1) && !(lastT >= W.t1 - 1e-6) ? 1 : 0;
   const lostSlots = run.cam.ok.reduce((a, ok) => a + (ok ? 0 : 1), 0);
   return {
-    peak, refPeak, excess: peak - refPeak, signedPeak: sgn, breach: peak > p.corridor ? 1 : 0,
+    peak, refPeak, excess: peak - refPeak, devPeak, devSigned, signedPeak: sgn, breach: peak > p.corridor ? 1 : 0,
     survival: isFinite(tF) && !isNaN(breachT) ? breachT - tF : NaN, fracOut: n ? nOut / n : NaN, rms: n ? Math.sqrt(se / n) : NaN,
     estPeak, steerJump: jump, finish: run.finish, timeLost: ref ? run.finish - ref.finish : NaN,
     alarms: alarmsW.length, alarmDelay: firstAfterFault !== undefined ? firstAfterFault - tF : NaN,
