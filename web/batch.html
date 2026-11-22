@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batch runner: camera-blackout experiments</title>
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 24px; max-width: 820px; }
+  button { font: inherit; padding: 6px 14px; margin: 0 6px 6px 0; }
+  #log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 6px; min-height: 120px; }
+</style>
+</head>
+<body>
+<h1>Batch runner</h1>
+<p>Runs a grid from <code>PLAN.md</code> §7 in a Web Worker and saves the files into <code>results/</code> through <code>tools/serve.py</code>. All data is simulated.</p>
+<div id="buttons"></div>
+<div id="log"></div>
+<script type="module" src="batch.js"></script>
+</body>
+</html>

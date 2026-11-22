@@ -1,0 +1,12 @@
+{
+  "ARW_hat_deg_per_sqrt_s": 0.014993981247439309,
+  "ARW_true_deg_per_sqrt_s": 0.014999999999999998,
+  "ARW_rel_err": 0.0004012501707126219,
+  "floor_meas_deg_s": 0.0025273243909742487,
+  "floor_model_deg_s": 0.0025847470582858146,
+  "floor_rel_err": 0.02221597162766418,
+  "pass": true,
+  "samples_used": 135000,
+  "skipped_warmup_s": 900.0,
+  "note": "synthetic data; verifies the generator and the Allan pipeline, not a real IMU"
+}

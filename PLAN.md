@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Version** | rev 3.2, 2026-11-23 (rev 3 plus Codex follow-up 1b: exact wheel-travel integration, short-blackout fault timing, SB precedent) |
-| **Status** | Design complete, waiting for Codex round 2 (§19). **No experiment has been run on this design.** `sim/sim.js` is draft v0: untested, 2 known bugs, parameters not yet updated to rev 3 |
+| **Version** | rev 3.3, 2026-11-23 (rev 3.2 plus two M1 verification fixes: boxcar gyro output and EKF bias process noise) |
+| **Status** | **M1 passed** except V9 (Codex) and V8 (M4). Simulator in `sim/` (modules). Scored runs (A, CAL, B0) are **provisional until V9 passes**. Run history: §20 |
 | **People** | Pushkar: PI, paper, viva · Claude: simulator, experiments, analysis, firmware · Codex: independent review, reference implementation |
 | **Course** | DSEU BT-PR701 Project-I (4 credits). Target: a 6-page IEEE-format workshop paper |
 | **Data** | 100% simulated, seeded, reproducible. Never presented as measured |
@@ -205,7 +205,7 @@ flowchart LR
   - Encoder rotation is $\Delta\phi_i=\Delta\ell_i/r$. Ground displacement is $\Delta\ell_i(1+\varepsilon_i)(1-s_i)$, and the pose update uses its mean and difference with midpoint heading.
   - Without the displacement integral, V4 fails (1.178 mm); with it, V4 passes (0.002 mm, Codex check).
 - **Encoders:** $n_i=\lfloor\phi_i N/2\pi\rfloor$, $d_i=2\pi r\,\Delta n_i/N$. They count wheel *rotation*, so slip and radius error are invisible to them.
-- **Gyro:** $\omega_g=\omega+b_0+b_w(t)+b_{GM,k}+b_f\mathbb{1}[t\ge t_f]+\eta_k$. Here ω is the yaw rate from the **instantaneous** ground speeds at the sensor tick, and:
+- **Gyro:** $\omega_g=\omega+b_0+b_w(t)+b_{GM,k}+b_f\mathbb{1}[t\ge t_f]+\eta_k$. Here ω is the **mean true yaw rate over the last 20 ms sample interval**, i.e. an integrating MEMS output (rev 3.3; replaces "instantaneous", Codex F2). Point sampling plus rectangle integration put a ½·Δt·Δω heading error (0.29°) at every curvature change. That error contaminated both the EKF and the monitor: D read 0.33° before any fault, and the alarm came 0.22 s after the fault instead of 0.6 s (§20). The remaining terms are:
   - $\eta_k\sim\mathcal N(0,N^2/\Delta t_s)$;
   - $b_{GM,k+1}=\phi b_{GM,k}+\sigma_{GM}\sqrt{1-\phi^2}\,w_k$, with $\phi=e^{-\Delta t_s/\tau_{GM}}$.
 - **Camera:** $z=[x,y,\theta]^\top+\mathcal N(0,\mathrm{diag}(\sigma_{xy}^2,\sigma_{xy}^2,\sigma_\theta^2))$. It is delivered only if its 100 ms slot isn't lost. Noise is drawn for every slot to keep the random streams paired.
@@ -229,7 +229,10 @@ flowchart LR
 - **Covariance propagation:** $P^-=FPF^\top+G\,\mathrm{diag}(\sigma_{\Delta s}^2,\,N^2\Delta t_s)\,G^\top+\mathrm{diag}(0,0,0,q_b)$, where
   - $F=I+\begin{bmatrix}0&0&-\Delta s\sin\theta&0\\0&0&\Delta s\cos\theta&0\\0&0&0&-\Delta t_s\\0&0&0&0\end{bmatrix}$,
   - $G=\begin{bmatrix}\cos\theta&0\\\sin\theta&0\\0&1\\0&0\end{bmatrix}$,
-  - $\sigma_{\Delta s}^2=\mathrm{res}^2/12+(0.01\,\Delta s)^2$, and $q_b=(3\times10^{-6})^2$.
+  - $\sigma_{\Delta s}^2=\mathrm{res}^2/12+(0.01\,\Delta s)^2$, and $q_b=(3\times10^{-4})^2$ per 20 ms step, tuned in M1 (rev 3.3, §20):
+    - **Rule fixed before the sweep:** the smallest q_b where the camera-available reference recovers from a +1°/s bias step with < 10 mm extra error, while NEES stays in [1, 3.5].
+    - At $q_b=(3\times10^{-6})^2$ the filter trusted its bias so much that the *reference* drifted 60 mm.
+    - At $(3\times10^{-4})^2$: reference 2.9 mm, NEES 1.92, healthy-blackout cost 1.4 mm.
 - **Update:** $H=[I_3\;0]$, $R=\mathrm{diag}(\sigma_{xy}^2,\sigma_{xy}^2,\sigma_\theta^2)$. The heading innovation is wrapped to $(-\pi,\pi]$ and P is symmetrized afterwards.
 - **Initialisation** at the end of calibration: $b_g=b_{cal}$, $P_{bb}=N^2/(\Delta t_s\,n_{cal})$.
 
@@ -398,11 +401,11 @@ Total: about 10,000 scored runs plus no-loss references. In a Web Worker that's 
 |---|---|---|
 | V1 | Determinism | Same config + seed run twice gives identical CSV rows |
 | V2 | Loss schedule | Logged dropped slots equal the scheduled ones exactly (all patterns, blackouts, Gilbert) |
-| V3 | No-loss baselines | $e_{pk}$ < 15 mm for every R×v used. Failing configs are excluded from breach metrics and reported |
+| V3 | No-loss baselines | $e_{pk}$ < 15 mm. **Blocking** for the hypothesis configs (A: 0.55 / 0.2 / 0.15; B, CAL, B0, S: 1.0 / 0.5 / 0.30). Other configs at ≥ 15 mm are excluded from breach metrics and reported |
 | V4 | Timestep convergence | $\lvert\Delta e_{ex}\rvert$ < 1 mm between Δt = 10 ms and 5 ms on 12 configs, **including Codex's case** (seed 7, R = 1, v = 0.5, 4 s exit, +1°/s). Codex measured: draft Euler 1.264 mm, exact speed only 1.178 mm, exact speed + wheel travel 0.002 mm |
 | V5 | EKF consistency | Mean 2-D NEES in [1.0, 3.5] on no-loss healthy runs |
 | V6 | Gyro generator | Allan deviation of a 1 h synthetic stationary log recovers ARW within ±10% and the bias-instability floor within ±30% |
-| V7 | Drift envelopes | Open-loop straight drive without camera: drift vs. §6.3 within 10% for t = 1–4 s |
+| V7 | Drift envelopes | Straight-path blackout (pre-entry onset). Drift = increment since the drift starts (fault onset, or blackout onset for persistent faults) of the faulted-minus-healthy estimate error, same seed, sampled **before** camera return. Within 10% of §6.3 for τ = 1–3.4 s |
 | V8 | Firmware parity (M4) | Wokwi vs. browser at the same timestamps: pose < 1 mm, identical alarm transitions, wheel commands < 1e-3 m/s |
 | V9 | Independent reference (Codex) | `analysis/reference_check.py` replays exported traces: pose agrees to < 1e-6 m |
 | V10 | Window coverage | No truncated score window in any planned config |
@@ -464,33 +467,33 @@ co_res/
 ├── .gitattributes / .gitignore   [x] LF line endings; ignores
 ├── paper/                        [ ] M5  main.tex, refs.bib, sections/
 ├── sim/                          the ONE model; ES modules, no DOM, runs in browser + Node
-│   ├── sim.js                    [x] draft v0; split into the modules below in M1, then deleted
-│   ├── params.js                 [ ] M1  every parameter with units + source; faults; loss patterns
-│   ├── util.js                   [ ] M1  seeded RNG streams, angle wrap, small matrix ops
-│   ├── route.js                  [ ] M1  geometry, projection, signed cross-track error
-│   ├── robot.js                  [ ] M1  diff-drive plant, exact motor lag, radius and slip faults
-│   ├── sensors.js                [ ] M1  encoders, gyro, camera, loss channels
-│   ├── estimators.js             [ ] M1  HOLD, DR, EKF
-│   ├── monitor.js                [ ] M1  gyro-encoder windowed residual + gate
-│   ├── control.js                [ ] M1  Pure Pursuit + speed policies N/SB/SA/SO
-│   ├── simulate.js               [ ] M1  one closed-loop run; logging
-│   ├── scenarios.js              [ ] M1  spec -> loss slots, fault times, score window
-│   ├── metrics.js                [ ] M1  per-run scores (§8)
-│   ├── experiments.js            [ ] M2  grids V, A, CAL, B0, B, C, D, S
+│   ├── params.js                 [x] M1  every parameter with units + source; faults; loss patterns
+│   ├── util.js                   [x] M1  seeded RNG streams, angle wrap, small matrix ops
+│   ├── route.js                  [x] M1  geometry, projection, signed cross-track error
+│   ├── robot.js                  [x] M1  diff-drive plant, exact motor lag, radius and slip faults
+│   ├── sensors.js                [x] M1  encoders, gyro, camera, loss channels
+│   ├── estimators.js             [x] M1  HOLD, DR, EKF
+│   ├── monitor.js                [x] M1  gyro-encoder windowed residual + gate
+│   ├── control.js                [x] M1  Pure Pursuit + speed policies N/SB/SA/SO
+│   ├── simulate.js               [x] M1  one closed-loop run; logging
+│   ├── scenarios.js              [x] M1  spec -> loss slots, fault times, score window
+│   ├── metrics.js                [x] M1  per-run scores (§8)
+│   ├── verify.js                 [x] M1  verification checks V1-V5, V7, V10 + synthetic gyro log (V6)
+│   ├── experiments.js            [x] M2  grids V, A, CAL, B0, B, C, D, S
 │   ├── trace_export.js           [ ] M4  ESP32 header writer (same-timestamp reference)
-│   └── batch_worker.js           [ ] M2  runs one grid in a Web Worker
+│   └── batch_worker.js           [x] M2  runs one grid in a Web Worker
 ├── web/
 │   ├── index.html                [ ] M2  links to demo + batch
-│   ├── batch.html, batch.js      [ ] M2  one click: run a grid, save into results/
+│   ├── batch.html, batch.js      [x] M2  one click: run a grid, save into results/
 │   ├── demo.html, demo.js        [ ] M4  p5.js viva demo + trace export
 │   └── style.css                 [ ] M4
 ├── tools/
-│   ├── serve.py                  [ ] M1  local server; POST /save writes only into results/
+│   ├── serve.py                  [x] M1  local server; POST /save writes only into results/
 │   └── run_experiment.mjs        [ ] M2  same grids from a terminal (Node; for Codex cloud)
 ├── analysis/                     Python; reads results/ only, never re-simulates
 │   ├── common.py                 [ ] M2  loaders, paired bootstrap, permutation, TOST, Holm
 │   ├── reference_check.py        [ ] M1  Codex: independent EKF + monitor replay (V9)
-│   ├── allan.py                  [ ] M3  V6
+│   ├── allan.py                  [x] M3  V6
 │   ├── fig_<topic>.py            [ ] M2-M3  one script per figure (§10)
 │   ├── make_tables.py            [ ] M3
 │   └── make_all.py               [ ] M3  regenerates every figure and table
@@ -591,7 +594,8 @@ co_res/
 |---|---|---|
 | 1 | `270508a` | Merged Claude v2 + Codex v2 |
 | 2 | `474dd92` | Codex round 1 integrated (blanket-slowdown baseline, onset anchoring, calibration seeds, B0, Wokwi timing, wheel-size sign fix) |
-| 3.2 | this commit | Single-file project: rules (§0), discussion log (§19) and run log (§20) merged into `PLAN.md`; `AGENTS.md`, `CLAUDE.md`, `README.md`, review files removed |
+| 3.3 | this commit | M1 verification fixes: gyro reports the interval-mean yaw rate (§4.2); EKF $q_b$ (3e-6)² → (3e-4)² by a pre-stated rule (§5.1); V3 blocking set and V7 drift definition made to match §9's intent. Draft `sim/sim.js` replaced by 14 modules |
+| 3.2 | `8bac4b7` | Single-file project: rules (§0), discussion log (§19) and run log (§20) merged into `PLAN.md`; `AGENTS.md`, `CLAUDE.md`, `README.md`, review files removed |
 | 3.1 | `73f1263` | Codex follow-up 1b (§19): exact wheel-travel integration (§4.2, V4); gyro sampled from instantaneous speeds; short-blackout fault timing $\min(0.5, T_b/4)$ (§7); Heydari Shahna et al. 2026 verified and added as SB precedent (§3, §18) |
 | 3 | `4b85040` | Restructured. Every item below is an issue found in rev 2, its consequence, and the fix: |
 
@@ -794,3 +798,35 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
 - **Where:** `PLAN.md`; `archive/prototypes/`.
 - **Result:** no runs.
 - **Meaning:** design ready for Codex round 2. Next is M1: fix and split `sim/sim.js`, then the V checks.
+
+**2026-11-23 · Claude · M1 build + verification run V (commit: see `git log`, message "sim: M1 ...")**
+- **What:**
+  - Replaced the draft `sim/sim.js` with 14 modules (§12) implementing every rev-3.2 change: exact wheel-travel integration, onset-anchored blackouts, fault onset $\min(0.5, T_b/4)$, $L_3$ = 5 m, fixed $L_d$, $T_w$ = 2 s, arms N/SB/SA/SO, same-timestamp snapshot logging.
+  - Added `web/batch.html` (Web Worker), `tools/serve.py` (saves into `results/`) and `analysis/allan.py`.
+  - Ran V1–V7 and V10.
+- **Why:** M1 gate. No scored run is allowed before V passes (§9).
+- **Where:** `sim/`, `web/`, `tools/`, `analysis/allan.py`. Results in `results/v_verification/` (`checks.json`, `v3_baselines.csv`, `v4_dt.csv`, `v7_envelopes.csv`) and `results/imu_static/` (1 h synthetic gyro log, `allan_check.json`), plus `figures/fig_allan.*`.
+- **Result: smoke test first, which found two model problems.**
+  - **(1) The bias estimate was frozen.** With $q_b=(3\times10^{-6})^2$, a +1°/s gyro step left a 3.2° heading error **even after the camera returned**. The no-loss reference itself drifted 60 mm, so excess error came out −2.9 mm: meaningless.
+  - **(2) Gyro point sampling added a bias at every turn.** Point sampling with rectangle integration gave D = 0.33° *before* the fault at arc entry, so the alarm fired 0.22 s after the fault instead of 0.6 s.
+  - **Fixes:**
+    - The gyro now reports the interval-mean rate (§4.2).
+    - q_b was swept over {3e-6, 3e-5, 1e-4, 3e-4, 1e-3} using the rule fixed before the sweep (§5.1). Chosen: 3e-4. Reference extra error 2.9 mm (60.2 at 3e-6, 12.2 at 1e-4); NEES 1.92; healthy 4 s blackout cost 1.4 mm; max healthy D 0.40° (< h = 0.6°).
+- **Result: verification after the fixes.**
+
+  | Check | Result |
+  |---|---|
+  | V1 | Identical |
+  | V2 | All 8 pattern and blackout schedules exact. Gilbert rate 0.0965–0.1009, mean burst 1.00 / 3.97 / 7.83 / 15.43 for targets 1 / 4 / 8 / 16 |
+  | V3 | Pass. Hypothesis configs max 8.1 mm (A) and 14.9 mm (B). C config R = 1, v = 0.3, $L_d$ = 0.30 hit 16.0 mm on 1 seed, so it is excluded from breach metrics |
+  | V4 | Max \|Δ\| 0.001 mm over 12 cases, including Codex's seed-7 case |
+  | V5 | NEES 1.90 |
+  | V6 | ARW recovered at 0.01499°/√s (injected 0.015, 0.04% error); bias floor within 2.2% |
+  | V7 | ≤ 3.9% |
+  | V10 | 0 truncated windows in 9,500 specs |
+
+  The first V7 run failed only because of how the check was written: it sampled at the camera-return instant, and for the persistent wheel fault it included a pre-blackout offset. That offset is a finding in itself: with wheels 3% too large, the EKF lags about 12 mm along-track *even with the camera*.
+- **Meaning:**
+  - The simulator matches the §6.3 drift formulas almost exactly on a straight: ½vbτ² within 1–4%.
+  - The two fixes change the design: q_b is now part of the method and must be reported.
+  - Next: Part A, CAL, B0. They are marked **provisional until Codex's V9** (independent reference) passes.

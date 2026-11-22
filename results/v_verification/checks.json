@@ -1,0 +1,116 @@
+{
+  "meta": {
+    "created": "2026-11-22T22:11:26.079Z",
+    "seconds": 0.63,
+    "paramsHash": "512c92c7",
+    "defaults": {
+      "R": 1,
+      "L1": 3,
+      "L3": 5,
+      "v": 0.5,
+      "Ld": 0.3,
+      "track": 0.2,
+      "wheelR": 0.033,
+      "cpr": 360,
+      "motorTau": 0.12,
+      "wheelVmax": 1,
+      "tStill": 1,
+      "dt": 0.01,
+      "sensHz": 50,
+      "camHz": 10,
+      "steerHz": 10,
+      "camSigXY": 0.01,
+      "camSigTh": 0.017453292519943295,
+      "camNoiseScale": 1,
+      "gyroARW": 0.0002617993877991494,
+      "gyroGMsig": 0.00006981317007977319,
+      "gyroGMtau": 100,
+      "gyroTurnOn": 0.017453292519943295,
+      "gyroWarmAmp": 0.003490658503988659,
+      "gyroWarmTau": 120,
+      "gyroNoiseScale": 1,
+      "ekfScaleSig": 0.01,
+      "ekfBiasRW": 0.0003,
+      "monWin": 2,
+      "monThr": 0.010471975511965976,
+      "monGate": 0.3,
+      "alpha": 0.3,
+      "corridor": 0.03,
+      "scoreTail": 3,
+      "tMax": 200
+    }
+  },
+  "checks": [
+    {
+      "id": "V1",
+      "name": "Determinism",
+      "pass": true,
+      "value": "identical",
+      "criterion": "identical rows"
+    },
+    {
+      "id": "V2",
+      "name": "Loss schedule",
+      "pass": true,
+      "value": "iso8:8/8; 2x4:8/8; burst8:8/8; blackout0.5:5/5; blackout1:10/10; blackout2:20/20; blackout4:40/40; GE1: rate 0.1009 burst 1.00; GE4: rate 0.0987 burst 3.97; GE8: rate 0.0998 burst 7.83; GE16: rate 0.0965 burst 15.43",
+      "criterion": "logged drops = scheduled; GE rate within 0.005, burst within 5%"
+    },
+    {
+      "id": "V3",
+      "name": "No-loss baselines",
+      "pass": true,
+      "value": "worst DR/EKF 16.0 mm; blocking fails 0; excluded from breach metrics: R1 v0.3 Ld0.30 ekf s1: 16.0mm",
+      "criterion": "peak < 15 mm on hypothesis configs; others >= 15 mm are excluded from breach metrics",
+      "detail": []
+    },
+    {
+      "id": "V4",
+      "name": "Timestep convergence",
+      "pass": true,
+      "value": "max |diff| 0.001 mm over 12 cases",
+      "criterion": "< 1 mm (dt 10 ms vs 5 ms)"
+    },
+    {
+      "id": "V5",
+      "name": "EKF consistency (2-D position NEES, no loss)",
+      "pass": true,
+      "value": "mean 1.90 (per seed 3.32 2.04 1.92 1.28 1.73 1.30 2.27 0.94 1.68 2.56)",
+      "criterion": "mean in [1.0, 3.5]; consistent = 2"
+    },
+    {
+      "id": "V7",
+      "name": "Drift envelopes on a straight (estimate drift vs PLAN §6.3)",
+      "pass": true,
+      "value": "max relative error 3.9%",
+      "criterion": "within 10% for tau = 1-3.4 s, before camera return"
+    },
+    {
+      "id": "V10",
+      "name": "Score windows inside the route",
+      "pass": true,
+      "value": "A: 0/1080; CAL: 0/480; B0: 0/960; B: 0/4800; C: 0/900; S: 0/1280",
+      "criterion": "no window ends after the no-loss finish"
+    },
+    {
+      "id": "V6",
+      "name": "Gyro generator (Allan deviation)",
+      "pass": null,
+      "value": "computed in analysis/allan.py",
+      "criterion": "ARW within 10%, bias-instability floor within 30%"
+    },
+    {
+      "id": "V8",
+      "name": "Firmware parity",
+      "pass": null,
+      "value": "M4",
+      "criterion": "pose < 1 mm, same alarms"
+    },
+    {
+      "id": "V9",
+      "name": "Independent reference (Codex)",
+      "pass": null,
+      "value": "pending Codex",
+      "criterion": "pose agrees < 1e-6 m"
+    }
+  ]
+}
