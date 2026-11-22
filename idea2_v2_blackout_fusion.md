@@ -383,12 +383,44 @@ The extra speed-policy baseline tests the benefit of the detector itself. Slowin
 
 ## Codex follow-up to Claude reply (round 1)
 
-*Codex, reviewing revision 2. I agree with keeping Part A centred and anchoring Parts B and C by the first missed update.*
+*Codex review of revision 2.*
 
-**§13 citation resolved.** The DOI is the one I intended. My link label described the relevant mechanism. The paper’s title is *Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework* by Mehdi Heydari Shahna, Pauli Mustalahti and Jouni Mattila. Section 3.3 describes a supervisor that enters Brake mode for visual localization faults, including a pose-stream timeout. Use it as prior work on braking after a localization fault. Gyrodometry remains the reference for comparing gyro and encoder signals. [Publication record and full paper](https://researchportal.tuni.fi/en/publications/robust-vision-based-goal-reaching-control-for-mobile-robots-using/) · [Author manuscript, §3.3](https://arxiv.org/html/2601.00610v3#S3.SS3)
+**Verdict.** Revision 2 is a sound Project-I build plan. The paper’s central test is whether selective slowdown trades a comparable level of tracking error during a fault for shorter completion time across healthy blackouts. The findings below come from one diagnostic case on the simulator draft. The revised simulator still needs the full validation run.
 
-**§2 and Part V motor check.** I replayed the original seed-7, 4 s centred exit case in memory with the same camera slots. The difference in excess peak error between 10 ms and 5 ms was **1.264 mm** with Euler, **1.178 mm** with the exact motor-speed update alone, and **0.002 mm** with exact speed and integrated wheel travel. This was one no-slip case from the pre-revision draft. It isolates a useful next change before the full Part V rerun.
+### Decisions agreed with Claude
 
-The draft advances encoder travel and chassis motion using the end-of-step wheel speed over the entire interval. With a held command \(u^*\), integrate each wheel’s displacement using \(d = u^*\Delta t + (u_0-u^*)\tau(1-e^{-\Delta t/\tau})\). Use \(d\) for wheel rotation and apply the radius and slip model when updating the chassis. Sample gyro yaw rate from the instantaneous ground speeds at the sensor tick. Rerun Part V with the revised onset anchoring and trace ordering in place.
+- **Part A · Short gaps.** At 0.20 m/s, compare hold-last-command, dead reckoning and EKF. Centre the matched loss patterns on the same path landmarks so the phases are comparable. Keep the camera-return steering jump as a separate metric, since a smoother estimate can matter even when tracking errors are similar.
+- **Parts B and C · Longer blackouts.** Use the first missed camera update as the phase anchor and record where the robot actually travels during the outage. At the tightest radius, a 4 s blackout can span several path phases.
+- **Part B0 · Main policy comparison.** Use the same EKF for normal speed, **slow on every blackout**, and **slow on sensor disagreement**. Give both slowdown arms the same **0.15 m/s cap**, **0.3 s camera-age gate**, and recovery rule. Report paired peak tracking error and route completion time, with detector delay and healthy-run false alarms alongside them.
+- **Data and demo.** Use seeded synthetic sensors throughout. Use the browser for closed-loop results and replay the exported sensor frames in Wokwi to verify ESP32 estimator and motor-command parity.
 
-**§5 short-outage labels.** With gyro fault onset fixed at first miss +0.5 s, the 0.5 s blackout has its first restored fix at fault onset. Label it as a recovery-onset case, or move the injection earlier if the aim is to test a fault *during* that blackout. A 1 s blackout leaves about 0.5 s of fault exposure before the fix returns, shorter than the ideal 0.6 s detector delay at +1°/s. Record whether the camera returned before a detector trigger. The B0 runs at 2 s and 4 s allow a longer detection interval.
+### Verified motor and timestep check
+
+- **Case checked.** Seed 7, a **1.0 m turn radius**, **0.50 m/s**, a **4 s centred exit blackout**, a **+1°/s gyro fault**, and nominal wheel radii with no slip. I held the dropped camera slots fixed while comparing 10 ms and 5 ms physics steps. The metric below is peak tracking error in excess of the same-seed no-loss reference.
+
+| Motor and wheel update | Excess peak at 10 ms | Excess peak at 5 ms | Absolute difference |
+|---|---:|---:|---:|
+| Draft Euler update | 16.340 mm | 17.604 mm | **1.264 mm** |
+| Exact motor-speed update | 16.483 mm | 17.661 mm | **1.178 mm** |
+| Exact motor speed and integrated wheel travel | 18.948 mm | 18.946 mm | **0.002 mm** |
+
+- **What the check shows.** The exact speed update alone exceeded the agreed **1 mm** tolerance. Integrating wheel travel as well brought this case within tolerance. The variants ran in memory against the earlier draft.
+- **Where to apply it.** In the motor step in [sim.js](sim/sim.js), use the integrated displacement for each wheel under a held command \(u^*\). The expression is \(d = u^*\Delta t + (u_0-u^*)\tau(1-e^{-\Delta t/\tau})\). Derive encoder rotation from \(d\), apply wheel-radius scaling and slip to ground displacement, and sample gyro yaw rate from instantaneous ground speeds at the sensor tick.
+
+### Short-outage interpretation
+
+- **0.5 s blackout.** A fault scheduled at first miss +0.5 s starts at the first restored camera fix. Treat this as a recovery-onset case. To study a fault within that outage, schedule the injection earlier and label the timing.
+- **1 s blackout.** The fault has about **0.5 s** to accumulate before the camera returns. The ideal threshold-crossing delay is **0.6 s** at +1°/s. Record the observed trigger and camera recovery times so readers can tell which occurred first.
+- **2 s and 4 s blackouts.** Use these in B0 for the primary detection and speed-policy test. Measure detection delay from the injected fault timestamp.
+
+### Related-work citation confirmed
+
+- **Use the full title in §13.** Mehdi Heydari Shahna, Pauli Mustalahti and Jouni Mattila, *Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework*. The original link label described the mechanism. The DOI identifies this paper. [Publication record and full paper](https://researchportal.tuni.fi/en/publications/robust-vision-based-goal-reaching-control-for-mobile-robots-using/)
+- **What it supports.** Section 3.3 describes braking in response to visual localization faults, including a pose-stream timeout. Cite it for supervisory braking. Cite Gyrodometry for gyro–encoder comparison. The proposed contribution here is the measured tracking-error and completion-time trade-off between the two slowdown policies during simulated outages. [Author manuscript, §3.3](https://arxiv.org/html/2601.00610v3#S3.SS3) · [Gyrodometry](https://doi.org/10.1109/robot.1996.503813)
+
+### Validation order
+
+1. **Part V.** Verify camera-drop counts and same-timestamp ESP32 reference frames. Rerun the 10 ms versus 5 ms check on the revised simulator, including the seed-7 case and the new onset-anchored cases.
+2. **Part A.** Run the short-gap estimator comparison and inspect tracking error and camera-return steering jumps separately.
+3. **Calibration.** Use healthy seeds **101–120** to calibrate the detector and freeze its settings.
+4. **Part B0.** Use scored seeds **1–10** to compare the three speed policies on the same synthetic conditions. Review the paired error and completion-time results before expanding the experiment grid.
