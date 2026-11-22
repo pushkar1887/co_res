@@ -830,3 +830,27 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - The simulator matches the §6.3 drift formulas almost exactly on a straight: ½vbτ² within 1–4%.
   - The two fixes change the design: q_b is now part of the method and must be reported.
   - Next: Part A, CAL, B0. They are marked **provisional until Codex's V9** (independent reference) passes.
+
+**2026-11-23 · Claude · Part A run (short gaps; PROVISIONAL until V9)**
+- **What:** 1,080 runs: R = 0.55 m, v = 0.2 m/s, $L_d$ = 0.15 m; patterns {iso8, 2x4, burst8} × {entry, mid, exit} × {none, slip} × {HOLD, DR, EKF} × seeds 1–20. Tests H1a–H1c (§2) with `analysis/hypothesis_tests.py A`.
+- **Why:** RQ1. Does onboard sensing help on short gaps, and where does the EKF beat plain dead reckoning?
+- **Where:** `results/a_estimators_short_gaps/` (`runs.csv`, `tests.csv`, `summary_medians.csv`, `meta.json`); `figures/fig_estimators_short_gaps.*` (F5). Code `sim/experiments.js` (grid A).
+- **Result** (medians over 20 seeds, no fault):
+
+  | Metric | Condition | HOLD | DR | EKF |
+  |---|---|---|---|---|
+  | Excess cross-track (mm) | burst8 entry | 6.4 | 3.1 | 0.2 |
+  | | burst8 mid | 9.7 | 1.2 | 0.2 |
+  | | burst8 exit | 5.3 | 0.9 | 0.2 |
+  | | iso8, all phases | ≤ 0.3 | ≤ 0.3 | ≤ 0.3 |
+  | Peak estimate error (mm) | all cells | — | ≈ 28 | ≈ 4 |
+  | Steering jump at camera return (rad/s) | all cells | — | 0.15–0.49 | 0.01–0.07 |
+
+  - **H1a, 3 of 4 supported** (Holm). HOLD − EKF: entry +5.7 [2.9, 7.5] mm, exit +4.6 [2.2, 16.1] mm. HOLD − DR: exit +6.1 [1.5, 16.1] mm. HOLD − DR at entry is not supported: +0.5 [−0.8, 8.8] mm.
+  - **H1b, equivalence (±3 mm) in 13 of 18 cells.** Inconclusive in burst8 entry (none, slip), burst8 mid (none, slip) and 2x4 entry/none. There DR is 1.3–2.8 mm worse, in line with the §6.4 prediction of 1–3 mm.
+  - **H1c, supported in 18 of 18 cells.** EKF vs. DR: estimate error 4.5–7.3× smaller; steering jump 3.7–21× smaller.
+  - **Slip** barely changes DR or EKF, because the gyro sees the real yaw.
+- **Meaning:**
+  1. On short gaps, the EKF's advantage over DR is filtering camera noise (estimate error, steering smoothness), not tracking. That confirms the Codex-setting prototype with 20 seeds.
+  2. **§6.1 is falsified in the presence of noise.** HOLD's worst phase is mid-turn (9.7 mm), not entry or exit. Holding a command computed from a *noisy* last fix costs error even on a constant arc; §6.1's "mid-turn is free" holds only for noise-free fixes. The paper must say this; it's a better finding than the v1 claim.
+  3. Short gaps alone stay at a few mm, all inside the ±30 mm corridor. The paper's weight rests on B0.
