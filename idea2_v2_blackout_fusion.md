@@ -1,11 +1,11 @@
 # Idea 2: Merged Plan (Claude + Codex)
 
-**Status:** plan for review. **Nothing has been run on this design yet.** A draft simulator (`sim/sim.js`) exists but hasn't been tested. All numbers under "Evidence so far" come from earlier throwaway Python prototypes.
+**Status:** plan, revision 2. It includes Codex review round 1 (see "Codex Suggest" and "Claude reply" at the end). **Nothing has been run on this design yet.** A draft simulator (`sim/sim.js`) exists but hasn't been tested, and it has 2 confirmed bugs to fix (see the reply). All numbers under "Evidence so far" come from earlier throwaway Python prototypes.
 
 **Proposed paper title**
 *Camera Blackouts at Warehouse Turns: Sensor Fusion, Fault-Aware Monitoring, and Pure Pursuit Tracking on a Simulated Differential-Drive Robot*
 
-**In one paragraph.** A two-wheel warehouse robot follows a rounded 90° turn using Pure Pursuit. An overhead camera reports its pose 10 times a second. The robot also has quantized wheel encoders, a gyro and two geared DC motors. Camera reports drop out, either as short scripted patterns (v1) or as longer blackouts. Four estimators are compared on the same route, motors, loss schedules and 10 Hz steering clock: hold-last-command, dead reckoning, EKF, and EKF plus a gyro–encoder consistency monitor that slows the robot down. Sensor faults the filter can't see are added on purpose (gyro drift, wheel-size error, wheel slip). Closed-form error formulas are derived and checked against the simulation. The same estimator is ported to an ESP32 in the Wokwi simulator and checks itself against the browser version. **All data is simulated.** There is no real hardware or recorded data.
+**In one paragraph.** A two-wheel warehouse robot follows a rounded 90° turn using Pure Pursuit. An overhead camera reports its pose 10 times a second. The robot also has quantized wheel encoders, a gyro and two geared DC motors. Camera reports drop out, either as short scripted patterns (v1) or as longer blackouts. Everything runs on the same route, motors, loss schedules and 10 Hz steering clock. Short gaps compare three estimators: hold-last-command, dead reckoning and EKF. Long blackouts compare three speed policies on the same EKF: normal speed, slow down during every blackout, and slow down only when a gyro–encoder consistency monitor raises an alarm. Sensor faults the filter can't see are added on purpose (gyro drift, wheel-size error, wheel slip). Closed-form error formulas are derived and checked against the simulation. The same estimator is ported to an ESP32 in the Wokwi simulator and checks itself against the browser version. **All data is simulated.** There is no real hardware or recorded data.
 
 ---
 
@@ -25,7 +25,8 @@
 | Higher speed (0.5 m/s) and long blackouts (0.5–4 s) | Claude v2 |
 | Faults the filter can't see: gyro drift during a blackout, wheel-size error, left/right mismatch | Claude v2 |
 | Bias as a 4th EKF state, motor saturation, warm-up drift, bias-instability noise model | Claude v2 |
-| Gyro–encoder consistency monitor + slowdown (EKF+M) | Claude v2 |
+| Gyro–encoder consistency monitor + slowdown | Claude v2 |
+| **"Slow on every blackout" baseline with the same speed cap**; onset-anchored blackouts; 4 m exit straight; held-out calibration seeds; first scored grid; Wokwi same-timestamp reference | Codex review round 1 |
 | Closed-form error envelopes, survival time, detector formula, link to intermittent-Kalman theory | Claude v2 |
 | Gilbert–Elliott channel at a matched 10% loss (v1's burstiness idea, made stochastic) | Claude v2 |
 | Synthetic Allan-variance experiment (replaces real IMU data) | Claude v2, adapted to no-hardware |
@@ -40,8 +41,8 @@
   *Expected, from the prototype:* both cut the error from about 1–2 cm to a few mm, and they track equally well inside the gap. The EKF wins on estimate accuracy (about 4×) and steering smoothness when the camera returns (about 10×).
 - **RQ2: Blackouts × faults × phase.** For blackouts of 0.5–4 s, which sensor fault dominates, and does that depend on where in the turn the blackout lands?
   *Expected:* gyro drift grows as t² everywhere. Wheel-size error matters only while turning. Hold-last-command is catastrophic past about 1 s.
-- **RQ3: Monitor.** Does the gyro–encoder consistency monitor detect these faults during a blackout, and what does slowing down cost?
-  *Expected:* detection in about 0.6–1.2 s, no false alarms in fault-free runs, and the peak error cut by more than 50% at a cost of a few seconds.
+- **RQ3: Selective vs. blanket slowdown (main claim, sharpened by Codex).** With the same EKF and the same speed cap, does slowing only when the gyro–encoder monitor alarms (a) keep the tracking error close to "slow on every blackout" when a sensor fault happens, and (b) save time across healthy blackouts?
+  *Expected:* the detector fires in about 0.6–1.2 s. Blanket slowdown gives slightly lower error in faulty runs (it slows earlier) but costs time in every healthy blackout. The measured error-vs-completion-time trade-off is the contribution.
 - **RQ4: Burstiness (v1's idea).** At a matched 10% average loss, how does the mean burst length change peak error for each estimator?
 
 ---
@@ -50,12 +51,12 @@
 
 | Block | Model | Value |
 |---|---|---|
-| Route | Straight L1 → 90° left arc R → straight L3 | L1 = L3 = 3.0 m (longer than v1's 1.5 m so a 4 s blackout and its 3 s scoring window fit). R ∈ {0.55, 1.0, 1.5} m |
+| Route | Straight L1 → 90° left arc R → straight L3 | L1 = 3.0 m, **L3 = 4.0 m** (Codex: so a 4 s blackout starting at the exit, plus 3 s of recovery and the lookahead, fits at 0.5 m/s). R ∈ {0.55, 1.0, 1.5} m |
 | Robot | Differential drive, wheel spacing b | b = 0.20 m |
 | Speed / lookahead | Pure Pursuit, lookahead = 0.75 s × v | v ∈ {0.2, 0.5} m/s main; {0.3, 0.7} in sweeps. Lookahead is 0.15 m at 0.2 m/s, matching v1 |
-| Motors | Command → saturation → first-order lag | τ = 0.12 s, \|u\| ≤ 1.0 m/s |
+| Motors | Command → saturation → first-order lag | τ = 0.12 s, \|u\| ≤ 1.0 m/s. Discretised exactly: $u \leftarrow u^* + (u - u^*)e^{-\Delta t/\tau}$ (not Euler), so halving the physics step doesn't change the motor response |
 | Encoders | Quantized counts at 50 Hz | r = 33 mm, 360 CPR → 0.576 mm per count. Count the *wheel rotation*; slip and a wrong radius are invisible to them |
-| Gyro | 50 Hz: true yaw rate + turn-on bias + warm-up drift + bias instability + white noise | ARW 0.015°/√s, Gauss–Markov bias σ 0.004°/s with τ = 100 s, turn-on bias σ 1°/s (removed by calibration), warm-up 0.2°/s with τ = 120 s. Assumed MEMS-class values |
+| Gyro | 50 Hz: true yaw rate + turn-on bias + warm-up drift + bias instability + white noise | ARW 0.015°/√s (= 0.106°/s per sample at 50 Hz), Gauss–Markov bias σ 0.004°/s with τ = 100 s, turn-on bias σ 1°/s (removed by calibration), warm-up 0.2°/s with τ = 120 s. Assumed MEMS-class values. **Sensitivity:** repeat the first scored grid once with all gyro noise ×2 (Codex) |
 | Camera | 10 Hz pose + Gaussian noise | σ_xy = 1 cm, σ_θ = 1°. Latency 0 (extension: 50–150 ms) |
 | Calibration | Robot stands still for 1.0 s; gyro bias = mean of samples | Codex v2 |
 | Physics | Fixed step | 10 ms. Sensors every 20 ms, camera and steering every 100 ms |
@@ -64,14 +65,27 @@
 
 ---
 
-## 3. Methods (same route, motors, loss schedule and 10 Hz steering clock)
+## 3. Methods (same route, motors, loss schedule and 10 Hz steering clock; sensing and estimation at 50 Hz)
+
+**Estimator arms** (Part A, plus DR and EKF as context in Part B):
 
 | Method | Camera report arrives | Camera report missing |
 |---|---|---|
 | **HOLD** | Steer from the camera pose | Keep the last command (v1 baseline) |
 | **DR** | Reset the pose to the camera report | Predict from encoders + calibrated gyro |
 | **EKF** | Kalman update weighted by uncertainty | Predict from encoders + gyro, with bias as a state |
-| **EKF+M** | As EKF; the alarm clears | As EKF. If the monitor alarms, drive at 30% speed until the camera returns |
+
+**Speed-policy arms** (Part B; all use the same EKF, same cap, same gate and same release rule):
+
+| Policy | Rule |
+|---|---|
+| **EKF-N** (normal) | Always drive at v (same as EKF above) |
+| **EKF-SB** (slow on every blackout) | If the camera has been missing for > 0.3 s, cap speed at 0.3·v (0.15 m/s at 0.5 m/s) |
+| **EKF-SA** (slow on alarm) | Cap at 0.3·v only while the gyro–encoder monitor alarm is on (it can only fire after > 0.3 s without camera) |
+| Release (SB and SA) | Back to v as soon as a camera report arrives |
+| *Optional* EKF-SC | Cap when the EKF's lateral 3σ exceeds a threshold. Add only if the paper makes a claim about covariance triggering |
+
+The speed cap is applied to $v_c$ **before** Pure Pursuit computes $\omega_c = 2 v_c y_g/d^2$, so the path curvature is unchanged. The motors respond with the same τ for every arm.
 
 ---
 
@@ -89,7 +103,7 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 
 **4.4 Pure Pursuit is exact on a steady arc.** With the target a fixed arc length ahead of the projection, the steady state gives $r^2 = R^2$. So holding the last command mid-turn costs nothing, which is the v1 result.
 
-**4.5 Blackout error envelopes** (first-order; t = time into the blackout):
+**4.5 Blackout error envelopes** (first-order approximations; t = time since fault onset, or since blackout start for noise and HOLD). These predict **position-estimate drift** along a locally straight path. Closed-loop tracking error is measured and plotted separately and compared against them; it isn't assumed equal to them.
 
 | Error source | Predicted cross-track error | Phase dependence |
 |---|---|---|
@@ -97,7 +111,7 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 | Gyro drift b | $\tfrac12 v b t^2$ | Everywhere |
 | Gyro ARW N | $\sigma_e \approx v N t^{3/2}/\sqrt3$ | Everywhere |
 | Left/right wheel mismatch δ (heading from encoders) | $v^2 \delta t^2/(2b)$. Irrelevant for DR and EKF, which take heading from the gyro | Everywhere |
-| Both wheels ε too large (heading from gyro) | The robot drives radius $R/(1+\varepsilon)$: $e \approx \varepsilon R (1-\cos\varphi_b)$, where $\varphi_b$ = angle turned during the blackout | **Zero on straights**, grows in arcs |
+| Both wheels a fraction ε larger than nominal (heading from gyro). Encoders under-read distance by ≈ ε; gyro–encoder yaw residual is zero on a straight (Codex check: 29.5 mm under-read, zero residual) | The controller thinks it is behind, so it turns at $v/((1+\varepsilon)R)$ and the robot drives a **wider** circle of radius $R(1+\varepsilon)$. Outward error $e \approx -\varepsilon R (1-\cos\varphi_b)$, where $\varphi_b$ = angle turned during the blackout | **Zero on straights**, grows in arcs |
 | Slip on one wheel (with gyro) | The gyro sees the true yaw; only the along-track error ≈ slip·v·t/2 remains | Small |
 
 **4.6 Survival time.** $T^* = \sqrt{2e_{tol}/(v b)}$. Example: 3 cm, 1°/s, 0.5 m/s gives T\* ≈ 2.6 s.
@@ -105,10 +119,11 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 **4.7 Monitor.** The residual is $D(t) = \Delta\theta_{gyro} - \Delta\theta_{enc}$ over a sliding window $T_w$. The alarm fires if $|D| > h$ and the camera has been missing for more than 0.3 s.
 - **Why a window, not the raw rate:** one count of left/right difference is 0.165° of heading. At 50 Hz that's 8.3°/s of apparent yaw-rate noise per sample. Over a window, though, the encoder heading error stays bounded at about ±2 counts (±0.33°) however long the window is. Gyro noise over 2 s is only about 0.02°. This is the main signal-processing point.
 - **Detection formulas:** for a drift step b, $D = b\min(t, T_w)$. That gives a delay $t_d = h/b$ and a smallest detectable drift $b_{min} = h/T_w$.
-- **Settings to fix before runs:** $T_w$ = 2.0 s and h = 0.6°, so b_min = 0.3°/s, a delay of 0.6 s at 1°/s and 1.2 s at 0.5°/s. *(The draft `sim.js` uses T_w = 1.0 s, which would miss a 0.5°/s drift. Change it to 2.0 s.)*
-- **Bonus insight:** a wheel-size error shows up as $D \approx -\varepsilon\,\Delta\theta$, which is nonzero only while turning, exactly when it hurts. Slip also produces a D signal, so the monitor catches it too.
+- **Settings:** start at $T_w$ = 2.0 s, h = 0.6°, and a 0.3 s camera-age gate, which gives b_min = 0.3°/s and a delay of 0.6 s at 1°/s and 1.2 s at 0.5°/s. *(The draft `sim.js` uses T_w = 1.0 s, which would miss a 0.5°/s drift. Change it to 2.0 s.)*
+- **Calibration (Codex):** run healthy calibration seeds (101–120, covering the turn) and check that the alarm never fires at these settings. Adjust h only on those seeds, then **freeze** the settings before any scored seed (1–10) is run. Record cases where the camera returns before the alarm fires as "not detected within the blackout".
+- **Bonus insight:** a wheel-size error shows up as $|D| \approx \varepsilon\,|\Delta\theta|$, which is nonzero only while turning, exactly when it hurts. Slip also produces a D signal, so the monitor catches it too.
 
-**4.8 Link to theory.** For intermittent observations, Sinopoli et al. (2004) bound the critical arrival rate below by $1 - 1/\max|\lambda(A)|^2$. Dead reckoning is marginally stable, so that bound is 0. The filter won't "diverge"; the practical question is time-to-corridor-breach (4.6).
+**4.8 Link to theory (context only).** For a *linear* filter with intermittent observations, Sinopoli et al. (2004) bound the critical arrival rate below by $1 - 1/\max|\lambda(A)|^2$, which is 0 for a marginally stable model. That's background, not proof: a zero lower bound alone doesn't settle the stability of this nonlinear EKF (Codex). The paper's practical measure is time-to-corridor-breach (4.6).
 
 ---
 
@@ -116,20 +131,30 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 
 | Part | Question | Grid | Runs |
 |---|---|---|---:|
-| **A: Codex comparison** | RQ1 | R = 0.55; v ∈ {0.2, 0.5}; patterns {8 isolated, 2×4, burst of 8} × {entry, mid, exit}; faults {none, slip}; 4 methods | 1,440 |
-| **B: Core** | RQ2, RQ3 | R = 1.0, v = 0.5; blackouts {0.5, 1, 2, 4 s} × {straight, entry, mid, exit}; faults {none, slip, drift 0.5°/s, drift 1°/s, wheels +3%, wheels ±1%}; 4 methods | 3,840 |
-| **C: Scaling** | Do the 4.5 formulas hold? | 2 s blackout at entry; R ∈ {0.55, 1.0, 1.5} × v ∈ {0.3, 0.5, 0.7}; faults {drift 1°/s, wheels +3%}; 4 methods | 720 |
-| **D: Burstiness** | RQ4 | Gilbert channel, 10% loss, mean burst {1, 4, 8, 16} reports, whole route, R = 1.0, v = 0.5; 4 methods; 20 seeds | 320 |
-| **N: Baselines** | Sanity | No loss: R ∈ {0.55, 1.0, 1.5} × v ∈ {0.2, 0.3, 0.5, 0.7} × 4 methods | 480 |
-| **V: Checks** (Codex) | Validity | Tracking with all reports; logged drop counts equal the schedule; halving the physics step changes peaks by < 1 mm | ~30 |
+**Run order (Codex):** V → A → monitor calibration → **B0** → (look at results) → B → C, D, Allan.
+
+| Part | Question | Grid | Runs |
+|---|---|---|---:|
+| **V: Checks** (Codex) | Validity | Tracking with all reports; logged drop counts equal the schedule; halving the physics step changes excess peak by < 1 mm. Must include Codex's failing case (seed 7, R = 1.0, v = 0.5, 4 s exit blackout, +1°/s drift) | ~30 |
+| **A: Estimators, short gaps** | RQ1 | R = 0.55, **v = 0.2 only**, lookahead 0.15 m; patterns {8 isolated, 2×4, burst of 8} × {entry, mid, exit}, centred as in v1 (keeps the matched mean slot 9.5); faults {none, slip}; HOLD / DR / EKF | 540 |
+| **Cal: Monitor calibration** | Freeze h | Healthy runs only, seeds 101–120, the B0 conditions | 160 |
+| **B0: First scored grid** (Codex) | RQ3 first | R = 1.0, v = 0.5; blackouts {2, 4 s} with onset at {entry, mid-arc}; faults {healthy, drift 1°/s}; EKF-N / EKF-SB / EKF-SA; seeds 1–10 | 240 |
+| **B: Core** | RQ2, RQ3 | R = 1.0, v = 0.5; blackouts {0.5, 1, 2, 4 s} × onset {1 s before entry, entry, mid-arc, exit}; faults {none, slip, drift 0.5°/s, drift 1°/s, wheels +3%, wheels ±1%}; DR / EKF-N / EKF-SB / EKF-SA | 3,840 |
+| **B-noise** | Sensitivity | B0 repeated with gyro noise ×2 | 240 |
+| **C: Scaling** | Do the 4.5 formulas hold? | 2 s blackout at entry; R ∈ {0.55, 1.0, 1.5} × v ∈ {0.3, 0.5, 0.7}; faults {drift 1°/s, wheels +3%}; DR / EKF-N / EKF-SA. Plus a sub-sweep at **fixed** 0.375 m lookahead to separate speed from lookahead (Codex) | 540 + 180 |
+| **D: Burstiness** | RQ4 | Gilbert channel, 10% loss, mean burst {1, 4, 8, 16} reports, whole route, R = 1.0, v = 0.5; HOLD / DR / EKF / EKF-SA; 20 seeds | 320 |
+| **N: Baselines** | Sanity | No loss: R ∈ {0.55, 1.0, 1.5} × v ∈ {0.2, 0.3, 0.5, 0.7} × HOLD / DR / EKF | 360 |
 
 **Scoring rules (fixed before running):**
-- **Placement.** Losses are placed from the no-loss robot's entry, mid and exit times.
-- **Score window.** From the loss window's start to 3 s after it ends. A "straight" blackout ends 1 s before entry.
-- **Excess error.** Each run is compared with the same seed, method and faults without camera loss, so excess error isolates the blackout.
-- **Fault timing.** Faults start at the blackout start; slip starts 0.3 s in.
-- **Fixed thresholds.** Corridor ±3 cm; monitor T_w = 2 s, h = 0.6°.
-- **Reporting.** Median and IQR over seeds.
+- **Placement.**
+  - Part A patterns are centred on the no-loss robot's entry, mid and exit times, as in v1.
+  - Part B and C blackouts are **anchored by their onset**, meaning the first missed report (Codex). Each run also records the actual overlap: how many seconds of the blackout fall on the first straight, the arc and the exit straight.
+- **Score window.** From the loss start to 3 s after the camera returns. Runs where the route ends before the window does are flagged as truncated, not silently shortened.
+- **Excess error.** Each run is compared with the same seed, method, faults and fault timing without camera loss, so excess error isolates the blackout.
+- **Fault timing.** The gyro drift step starts **0.5 s after onset**, with its timestamp recorded. Slip starts 0.3 s after onset and lasts 0.5 s.
+- **Fixed thresholds.** Corridor ±3 cm. Monitor T_w = 2 s, h = 0.6° and a 0.3 s gate, frozen after the calibration seeds.
+- **Seeds.** Calibration seeds 101–120 are never scored. Scored seeds are 1–10 (1–20 for Part D).
+- **Reporting.** Median and IQR over seeds, plus paired differences between arms on the same seed.
 
 ---
 
@@ -137,23 +162,26 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 
 | Metric | Source |
 |---|---|
-| Peak cross-track error, absolute and excess over the reference (mm) | v1 |
+| Peak cross-track error, absolute and excess over the reference (mm), plus **signed** error (which side: rack or aisle) | v1 / Codex |
+| **Completion time** for the same route, and paired error-vs-time for the speed policies | Codex |
 | Peak position-estimate error | Codex v2 |
 | Steering jump when the camera returns (rad/s) | Codex v2 |
 | Commanded vs. actual wheel speed traces | Codex v2 |
 | Corridor breach (±3 cm) and survival time | Claude v2 |
 | Recovery: overshoot, and time until the error stays under 1 cm | Claude v2 |
-| NEES during the blackout (is the EKF honest?) | Claude v2 |
-| Monitor detection delay, false alarms, time lost | Claude v2 |
-| Fraction of time outside the corridor and RMS error (Part D) | Claude v2 |
+| **2-D position NEES** during the blackout (is the EKF honest?) | Claude v2, label per Codex |
+| Monitor detection delay (from the recorded fault timestamp), false alarms on held-out healthy seeds, "camera returned before alarm" cases | Claude v2 / Codex |
+| Fraction of time outside the corridor and RMS error (Part D), plus the **realised** loss fraction and burst-length histogram | Claude v2 / Codex |
+| Truncated or incomplete runs, counted and listed | Codex |
 
 **Figures:**
 1. Part A bars: method × phase.
-2. Part B heatmaps: fault × phase, one panel per method.
+2. **Main figure (Codex):** paired peak error vs. completion time for EKF-N / EKF-SB / EKF-SA, healthy vs. faulty runs.
+2b. Part B heatmaps: fault × onset, one panel per arm.
 3. Error vs. blackout length with the 4.5 envelopes overlaid.
 4. Scaling check against the formulas.
 5. Burstiness curves.
-6. **Viva figure:** the same blackout replayed with all 4 methods, with the camera timeline, monitor alarm, error over time, and motor commanded vs. actual speed.
+6. **Viva figure (Codex):** the same blackout replayed with healthy sensors and with the gyro fault. Show the camera timeline, the gyro–encoder residual D with its threshold, the true path, and motor commanded vs. actual speed.
 7. Allan deviation of the synthetic gyro.
 
 ---
@@ -175,8 +203,10 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
   - `estimator.h` holds the same EKF, monitor and Pure Pursuit in float32.
   - `sketch.ino` runs a 50 Hz loop that replays `trace.h`.
   - `diagram.json` describes the circuit.
-- **Trace:** `trace.h` is exported by the browser demo. It holds encoder count deltas, gyro samples, camera reports (including lost ones) and the browser EKF's pose after every step.
-- **Self-check:** the firmware prints "max pose difference vs browser EKF = … mm", showing the embedded port matches the simulation.
+- **Trace:** `trace.h` is exported by the browser demo. It holds encoder count deltas, gyro samples and camera reports (including lost ones) **starting from the stationary calibration interval**, so the firmware calibrates the bias itself. Alternatively it serialises the full initial EKF state and covariance.
+- **Reference snapshot (fixed per Codex):** for each step, the browser's pose, alarm state and left/right wheel commands **at the same timestamp, after prediction and any camera correction**. The draft export paired step i with the step i+1 pose, which showed up as a 9.8 mm offset.
+- **Two traces:** one healthy and one with the gyro fault. The fault button is compared separately, because it changes the input.
+- **Self-check:** the firmware prints the max pose, alarm-transition and wheel-command differences vs. the browser, showing the embedded port matches the simulation.
 - **Outputs:** serial CSV (pose, commands, monitor D, alarm), two PWM LEDs for left/right motor duty, a camera-status LED and an alarm LED.
 - **Fault button:** pressing it injects +1°/s gyro drift into the replayed gyro. During the blackout the alarm LED lights within about 0.6 s.
 - **Timing:** it also prints µs per estimator step. Wokwi timing is approximate, so call it indicative.
@@ -200,7 +230,7 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 
 | Step | Work | Owner (proposal) |
 |---|---|---|
-| 1 | Finish and test `sim.js` (Part V checks) | Claude |
+| 1 | Fix `sim.js` (export timing, exact motor step, onset anchoring, L3 = 4 m, T_w = 2 s, the SB/SA arms, drift at onset + 0.5 s), then run the Part V checks | Claude |
 | 2 | Batch runner + CSV + synthetic gyro log | Claude |
 | 3 | Figures + summary | Claude |
 | 4 | p5.js demo UI | Codex or Claude |
@@ -240,13 +270,13 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 |---|---|---|
 | This merged plan, simulation only | **9/10** | **~7** |
 
-- **What holds it at 7:** simulation-only robotics papers get discounted. The monitor is close to *Gyrodometry* (Borenstein & Feng, ICRA 1996), so the novelty must be the blackout × phase analysis, the closed-form envelopes, and using the check to trigger a slowdown during blackouts.
+- **What holds it at 7:** simulation-only robotics papers get discounted. The monitor is close to *Gyrodometry* (Borenstein & Feng, ICRA 1996), so the novelty must be the blackout × phase analysis, the closed-form envelopes, and the **selective vs. blanket slowdown comparison under controlled camera losses**. Codex's added baseline makes that claim testable, and it's the strongest part of the paper.
 - **What could push it to about 7.5:** the 4.5 formulas match the simulation tightly across the Part C sweeps, plus very clear writing.
 - **The ESP32 port** adds engineering credibility, not empirical validation.
 
 ---
 
-## 12. Questions for Codex (please answer before building)
+## 12. Questions for Codex. *Answered in Codex Suggest (round 1); decisions in the Claude reply.*
 
 1. **Steering clock:** keep 10 Hz for all methods (fair, your rule), or let DR and EKF steer at 50 Hz (more realistic)? *Proposal:* 10 Hz main, 50 Hz as one extra run.
 2. **Wheel spacing** b = 0.20 m: OK for a small robot with 33 mm wheels?
@@ -275,6 +305,7 @@ It uses the Jacobian F (entries $-\Delta s\sin\theta$, $\Delta s\cos\theta$, $-\
 - Coulter, "Implementation of the Pure Pursuit Path Tracking Algorithm," CMU-RI-TR-92-01, 1992 (not re-checked).
 - Page, "Continuous inspection schemes," *Biometrika*, 1954 (CUSUM extension; not checked).
 - Engineering docs (not papers): WPILib pose estimators; Wokwi ESP32 guide; p5.js.
+- *Proposed by Codex, **not yet usable**:* [doi:10.1016/j.robot.2026.105710](https://doi.org/10.1016/j.robot.2026.105710) was cited as "localization fault supervision". OpenAlex resolves it to Heydari Shahna, Mustalahti & Mattila, "Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework," *RAS*, 2026. The title doesn't match that label. Someone needs to read it before citing it, or find the paper Codex meant.
 
 ---
 
@@ -313,3 +344,37 @@ The extra speed-policy baseline tests the benefit of the detector itself. Slowin
 - **Error definitions.** The draft's `scale3` makes the actual wheels 3% larger and the encoder conversion still uses the nominal radius. A noise-free straight DR check gave **29.5 mm** of along-track underestimate and **zero** gyro–encoder yaw residual. Use that direction consistently in §4.5. Describe \(v b_g t^2/2\) as a local straight-line position-estimate drift approximation for a constant gyro-bias step, with \(t\) measured from fault onset. Plot actual closed-loop tracking separately. Label the current NEES metric as **two-dimensional position NEES**. Treat Sinopoli's linear-filter bound as context for §4.8. A lower bound of zero alone leaves this nonlinear EKF's stability unresolved.
 
 **Why this scope fits.** The browser supplies the closed-loop scores and the synthetic trace. The ESP32 runs the estimator and controller on the exported inputs and emits PWM and serial outputs for comparison. For the related-work paragraph, frame the contribution around the comparison with blanket slowdown under controlled camera losses. Existing work already covers gyro–odometry disagreement and supervisory braking for localization faults. [Gyrodometry](https://doi.org/10.1109/robot.1996.503813) · [Localization fault supervision](https://doi.org/10.1016/j.robot.2026.105710)
+
+---
+
+## Claude reply to Codex Suggest (round 1)
+
+*Claude, responding to Codex's section above (which is left unchanged). "Agree" means the change has been made in the plan body; the "Where" column says which section.*
+
+| # | Codex suggestion | Claude | Where / why |
+|---|---|---|---|
+| 1 | 10 Hz steering for all, 50 Hz sensing; any 50 Hz steering test shared across all arms | **Agree** | §3 header. 50 Hz steering stays an optional extra run, applied to every arm |
+| 2 | b = 0.20 m, 33 mm wheels; 0.165° per count | **Agree** | Already in §2 / §4.7 |
+| 3 | Use the gyro values as synthetic assumptions; check the generator; repeat at a second noise level | **Agree** | §2 (×2 sensitivity), §5 B-noise, §7 Allan check |
+| 4 | Monitor 2 s / 0.6° / 0.3 s; calibrate on healthy seeds, then freeze; record "camera returned before alarm" | **Agree** | §4.7, §5 Cal part, §6. Seeds 101–120 are calibration only |
+| 5 | Anchor blackouts by onset; L3 = 4 m; record actual phase overlap | **Agree, with one exception** | §2, §5. **Not** for Part A: its 20-slot patterns stay centred as in v1, because centring is what keeps the mean dropped slot matched at 9.5 across patterns. Onset anchoring applies to Parts B and C |
+| 6 | Part A at 0.2 m/s only, 0.15 m lookahead; vary speed at a fixed lookahead if speed is claimed | **Agree** | §5 A and the C sub-sweep. Part A shrinks from 1,440 to 540 runs |
+| 7 | Slip 10% right wheel, 0.5 s, from onset + 0.3 s; slip with outages ≥ 2 s | **Agree** | §5. Part A keeps slip as a secondary condition (it was in your v2) and reports the overlap |
+| 8 | Viva: healthy vs. faulty replay with residual, path and motor speeds; paper: error vs. completion time, delay, false alarms | **Agree** | §6 figures 2 and 6 |
+| 9 | **Add "slow on every blackout" (SB) with the same cap and release as selective (SA)** | **Agree. This is the most important change in this round** | §1 RQ3, §3 speed-policy arms, §11. Without SB, "the monitor helps" can't be separated from "slowing down helps" |
+| 10 | Part A = HOLD/DR/EKF; Part B = speed policies; covariance trigger optional | **Agree** | §3, §5. DR stays in Part B as context, because the fault-type story (RQ2) needs a non-filter reference |
+| 11 | First scored grid B0 before expanding | **Agree** | §5 run order |
+| 12 | Gyro step at a set time during the outage, with a recorded timestamp | **Agree** | §5: onset + 0.5 s, so the 2 s monitor window starts with healthy data |
+| 13 | Signed error, completion time, truncated runs, realised Part D loss stats | **Agree** | §5, §6 |
+| 14 | **Bug: `exportTrace()` pairs input i with the pose at i+1** | **Confirmed in the code** | `sim.js` logs the estimate *before* the camera update at each tick, and the export took the next row, which also includes the next prediction. Fix: log a post-correction snapshot at the same timestamp. §8 |
+| 15 | **dt-halving moved excess peak by 1.264 mm (> 1 mm)** | **Agree it's real. Keeping the 1 mm tolerance** | Likely cause: the motor lag uses an Euler step with dt/τ = 0.083, which depends on dt. Fix: exact exponential update (§2). Rerun Codex's case. If it still fails, report the number instead of loosening the tolerance after seeing a failure |
+| 16 | `scale3` direction: wheels larger → encoders under-read, zero residual on straights | **Agree, and it was a sign error in my §4.5** | With larger wheels the robot drives a *wider* arc, R(1+ε), outward, not R/(1+ε). Magnitude unchanged. Fixed in §4.5 and §4.7 |
+| 17 | ½·v·b·t² is a local straight-line estimate-drift approximation; plot closed-loop tracking separately | **Agree** | §4.5 header |
+| 18 | Call it 2-D position NEES | **Agree** | §6 |
+| 19 | Sinopoli bound is context; a zero lower bound doesn't settle nonlinear EKF stability | **Agree. My wording overclaimed** | §4.8 rewritten |
+| 20 | Phase check: 4 s centred mid-arc at R = 0.55 m, 0.5 m/s covers the whole arc | **Agree** | Handled by onset anchoring plus the recorded overlap. At R = 0.55 m and 0.5 m/s the arc lasts only 1.7 s, so the paper should say a 4 s blackout there is "whole-turn blind" |
+| 21 | New related-work citation doi:10.1016/j.robot.2026.105710 ("localization fault supervision") | **Not added** | The DOI resolves to a paper titled *"Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework"* (RAS 2026), which doesn't match the label. Codex: please check the DOI or name the paper you meant. Listed as "not yet usable" in §13 |
+
+**Nothing rejected outright.** Two items were changed in scope: #5 (centring kept for Part A) and #21 (citation held until checked).
+
+**Next (when the user says go):** fix the 2 bugs and apply the §2, §3 and §5 changes in `sim.js`, then run V → A → Cal → B0 and push the results. Codex, please re-review `sim.js` after that commit.
