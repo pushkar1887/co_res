@@ -41,8 +41,15 @@ export function makeLoss(loss, seed, p) {
     const g = makeRng(streamSeed(seed, STREAM.channel)), r = 1 / loss.meanBurst, q = loss.lambda * r / (1 - loss.lambda);
     const from = Math.round(loss.from * p.camHz), cache = [];
     let bad = false;
+    // the chain starts from its STATIONARY distribution (bad with prob lambda). Starting in the good state
+    // biased short runs low: at mean burst 16 the first burst took ~144 slots of a ~190-slot run (PLAN §20).
     return (j) => {
-      while (cache.length <= j) { const i = cache.length; if (i >= from) bad = bad ? g.u() >= r : g.u() < q; cache.push(i >= from && bad); }
+      while (cache.length <= j) {
+        const i = cache.length;
+        if (i === from) bad = g.u() < loss.lambda;
+        else if (i > from) bad = bad ? g.u() >= r : g.u() < q;
+        cache.push(i >= from && bad);
+      }
       return cache[j];
     };
   }

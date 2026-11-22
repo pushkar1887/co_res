@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Version** | rev 3.3, 2026-11-23 (rev 3.2 plus two M1 verification fixes: boxcar gyro output and EKF bias process noise) |
-| **Status** | **M2 core results in** (Part A, CAL, B0): P1–P4 supported, H1a 3/4, H1b 13/18, H1c 18/18. M1 passed except V9 (Codex) and V8 (M4), so every result is **provisional until V9 passes**. Next: B, C, D, S after review. Run history: §20 |
+| **Status** | **M2 + M3 runs complete** (A, CAL, B0, B, C, D, S). P1–P4 supported; H1a 3/4, H1b 13/18, H1c 18/18; H2 supported with caveats; H4 supported. Every result is **provisional until V9 (Codex)**. Open: V9, M4 (ESP32 + demo), paper. Run history: §20 |
 | **People** | Pushkar: PI, paper, viva · Claude: simulator, experiments, analysis, firmware · Codex: independent review, reference implementation |
 | **Course** | DSEU BT-PR701 Project-I (4 credits). Target: a 6-page IEEE-format workshop paper |
 | **Data** | 100% simulated, seeded, reproducible. Never presented as measured |
@@ -246,9 +246,9 @@ The target is $g=\Gamma(s_p+L_d)$, where $s_p$ is the projection of the *estimat
 - **Own offset:** $o\leftarrow o+(r_k-o)\,\Delta t_s/\tau_m$, with $\tau_m$ = 10 s. It is updated **only while the camera is fresh** and frozen during blackouts, and starts at $b_{cal}$.
 - **Residual:** $D(t)=\sum_{t-T_w}^{t}(r_k-o)\,\Delta t_s$. D measures the *change* in gyro–encoder disagreement since the blackout began.
 - **Why v2 replaced v1.** v1 referenced the EKF bias $\hat b$. With the agile $q_b$ of §5.1, $\hat b$ wanders 0.09°/s RMS once the robot is moving, against 0.018°/s right after calibration. CAL then gave 7/480 healthy false alarms and needed h = 0.95° > $h_{max}$: **K2 for v1** (§20).
-- **Trade-off of v2:** persistent faults are partly absorbed into o while the camera is available.
-  - Wheels ±1% (speed-proportional) are fully absorbed, so they no longer trigger SA.
-  - Wheels +3% shows up only when the turn rate *changes* during the blackout.
+- **Trade-off of v2:** persistent faults are absorbed into o only after about $3\tau_m$ = 30 s with the camera available.
+  - In our runs, blackouts start 2–14 s after start-up, so the ±1% (speed-proportional) fault is *not* yet absorbed. It triggers SA in 100% of blackouts, an unnecessary slowdown (Part B, §20).
+  - Wheels +3% shows up only when the turn rate changes during the blackout.
 - **Alarm:** fires when $\lvert D\rvert>h$ **and** $t-t_{fix}>g$. It clears at the next delivered report.
 
 ### 5.4 Speed policies (Parts B, C, S; all on the same EKF)
@@ -341,7 +341,7 @@ Implication to test: for blackouts shorter than $t_f+T^*$ (≈ 3.1 s here), even
 | **C1** | Scaling | $T_b$ = 4, entry onset, R {0.55, 1, 1.5} × v {0.3, 0.5, 0.7} × {gyro +1, wheels +3%}; $L_d$ = 0.30 | N, SA, SO | 1–10 | 540 | `c_scaling/` |
 | **C2** | Regret curve and $b_{min}$ | $T_b$ = 4, entry, R = 1, v = 0.5, $b_f$ ∈ {0.2, 0.3, 0.4, 0.5, 0.75, 1, 1.5, 2}°/s | N, SA, SO | 1–10 | 240 | `c_scaling/` |
 | **C3** | Time-scaled lookahead | As C1 at R = 1 with $L_d$ = 0.6 s × v | N, SA | 1–10 | 120 | `c_scaling/` |
-| **D** | H4 burstiness | Gilbert λ = 0.10, $\bar L$ {1, 4, 8, 16} reports, whole route, R = 1, v = 0.5, healthy | HOLD, DR, EKF | 1–30 | 360 | `d_burstiness/` |
+| **D** | H4 burstiness | Gilbert λ = 0.10, $\bar L$ {1, 4, 8, 16} reports, whole route, R = 1, v = 0.5, healthy. The chain starts from its stationary distribution (rev 3.5) | HOLD, DR, EKF | **1–100** (rev 3.5) | 1,200 | `d_burstiness/` |
 | **S** | Sensitivity | On the B0 grid: S1 gyro noise ×2; S2 camera σ ×2; S3 α {0.2, 0.5}; S4 50 Hz steering (all arms) | B0 arms | 1–10 | 1,280 | `s_sensitivity/` |
 
 Total: about 10,000 scored runs plus no-loss references. In a Web Worker that's under 2 min.
@@ -375,7 +375,8 @@ Total: about 10,000 scored runs plus no-loss references. In a Web Worker that's 
 | $e(t)$ | Signed distance from the **true** pose to the continuous route (left = +) | mm | all |
 | $e_{pk}$, $e_{ex}$ | $\max_W\lvert e\rvert$; $e_{pk}-e_{pk}^{ref}$ | mm | A, B0, B, C (primary for policy and drift claims) |
 | $e_{sgn}$ | e at the argmax: rack side or aisle side | mm | B |
-| $e_{dev}$ (secondary, post hoc, rev 3.4) | Path-aligned deviation $\max_W\lvert e(s)-e^{ref}(s)vert$. Comparable with the §6 drift formulas; $e_{ex}$ isn't, because a baseline peak of opposite sign cancels part of the drift | mm | B0, C |
+| $e_{dev}$ (secondary, post hoc, rev 3.4) | Path-aligned deviation $\max_W\lvert e(s)-e^{ref}(s)
+vert$. Comparable with the §6 drift formulas; $e_{ex}$ isn't, because a baseline peak of opposite sign cancels part of the drift | mm | B0, C |
 | breach | $\mathbb 1[\max_W\lvert e\rvert>30\,\mathrm{mm}]$ on absolute error | — | B0, B |
 | $T_{surv}$ | First breach time minus $t_f$ | s | B, C |
 | $\hat e_{pk}$ | $\max_W\lVert\hat p-p\rVert$ | mm | A |
@@ -501,7 +502,8 @@ co_res/
 │   ├── hypothesis_tests.py       [x] M2  H1a-c (A), CAL freeze rule, P1-P4 (B0) -> results/<exp>/tests.csv
 │   ├── reference_check.py        [ ] M1  Codex: independent EKF + monitor replay (V9)
 │   ├── allan.py                  [x] M3  V6
-│   ├── fig_<topic>.py            [~] M2-M3  done: fig_estimators_short_gaps (F5), fig_policy_tradeoff (F2), fig_threshold_window (F4); rest M3
+│   ├── fig_<topic>.py            [x] M2-M3  fig_estimators_short_gaps (F5), fig_policy_tradeoff (F2), fig_threshold_window (F4), fig_grids.py (F3, F6, F8, F9)
+│   ├── grid_summaries.py         [x] M3  B, C, D, S summaries and paired contrasts -> results/<exp>/summary_*.csv
 │   ├── make_tables.py            [ ] M3
 │   └── make_all.py               [ ] M3  regenerates every figure and table
 ├── results/                      generated, committed; one folder per experiment (§7)
@@ -601,7 +603,8 @@ co_res/
 |---|---|---|
 | 1 | `270508a` | Merged Claude v2 + Codex v2 |
 | 2 | `474dd92` | Codex round 1 integrated (blanket-slowdown baseline, onset anchoring, calibration seeds, B0, Wokwi timing, wheel-size sign fix) |
-| 3.4 | this commit | **Monitor v2** (§5.3): encoder-referenced offset replaces the EKF bias after monitor v1 hit K2 in CAL. Recalibrated on the same calibration seeds (scored seeds untouched): max healthy \|D\| 0.318°, 0 false alarms. **Frozen for all scored runs:** h = 0.6°, $T_w$ = 2 s, g = 0.3 s, $\tau_m$ = 10 s |
+| 3.5 | this commit | Gilbert channel starts from its stationary distribution (bug found in D); D seeds 1–30 → 1–100; §5.3 v2 trade-off corrected (±1% *is* detected in our short runs) |
+| 3.4 | `9d3de25` | **Monitor v2** (§5.3): encoder-referenced offset replaces the EKF bias after monitor v1 hit K2 in CAL. Recalibrated on the same calibration seeds (scored seeds untouched): max healthy \|D\| 0.318°, 0 false alarms. **Frozen for all scored runs:** h = 0.6°, $T_w$ = 2 s, g = 0.3 s, $\tau_m$ = 10 s |
 | 3.3 | `db6fe08` | M1 verification fixes: gyro reports the interval-mean yaw rate (§4.2); EKF $q_b$ (3e-6)² → (3e-4)² by a pre-stated rule (§5.1); V3 blocking set and V7 drift definition made to match §9's intent. Draft `sim/sim.js` replaced by 14 modules |
 | 3.2 | `8bac4b7` | Single-file project: rules (§0), discussion log (§19) and run log (§20) merged into `PLAN.md`; `AGENTS.md`, `CLAUDE.md`, `README.md`, review files removed |
 | 3.1 | `73f1263` | Codex follow-up 1b (§19): exact wheel-travel integration (§4.2, V4); gyro sampled from instantaneous speeds; short-blackout fault timing $\min(0.5, T_b/4)$ (§7); Heydari Shahna et al. 2026 verified and added as SB precedent (§3, §18) |
@@ -904,3 +907,71 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   3. **[FLAG] The pre-registered $e_{ex}$ isn't the right metric for formula checks.** A ~10 mm corner-cutting peak in the no-loss reference has the opposite sign to the fault drift and cancels part of it. The paper keeps $e_{ex}$ for P1–P3 and uses $e_{dev}$ for H3, labelled post hoc.
   4. **Curvature effect (new):** at entry onset the 3.5 s exposure is spent on the arc, and the straight-path formula overpredicts by 15–34%. A curved-path correction to §6.3 is a natural extension.
   5. **What we can't claim yet:** independent replication (V9, Codex) and the B, C, D, S grids.
+
+**2026-11-23 · Claude · Part B run (fault map; PROVISIONAL until V9)**
+- **What:** 4,800 runs: R = 1, v = 0.5; $T_b$ {0.5, 1, 2, 4} × onset {pre, entry, mid, exit} × faults {none, slip, gyro 0.5, gyro 1, wheels +3%, wheels ±1%} × {DR, N, SB, SA, SO} × seeds 1–10. Summaries with `analysis/grid_summaries.py`.
+- **Why:** H2. Which fault hurts where, and how do the policies behave across all faults?
+- **Where:** `results/b_fault_map/` (`runs.csv`, `summary_medians.csv`, `paired_tb4.csv`); `figures/fig_fault_map.*` (F6).
+- **Result** (4 s blackouts, median path-aligned deviation $e_{dev}$):
+
+  | Arm | Healthy | Gyro +1°/s | Gyro +0.5°/s | Slip | Wheels ±1% | Wheels +3% |
+  |---|---|---|---|---|---|---|
+  | EKF-N | 6–14 mm | 46–57 mm (breach 100%) | 21–31 mm | 12–14 mm | 6–14 mm | 12 (pre) / 53 (entry) / 24 (mid) / 22 (exit) mm |
+  | SB / SA / SO | 6–17 mm | 12–17 mm (breach 0–10%) | ≤ 13 mm | | | 8–19 mm (still breaches at entry and mid) |
+
+  - **SA − SB paired $e_{dev}$:** within ±2.4 mm in every fault × onset cell.
+  - **Time lost (SA vs. SB):** healthy 0 vs. 2.60 s; gyro 1°/s 2.04–2.10 vs. 2.60 s; gyro 0.5°/s 1.75–1.79 vs. 2.60 s.
+  - **Detection before camera return:** gyro 1°/s 100% for $T_b$ ≥ 1 s (2% at 0.5 s); gyro 0.5°/s 100% for $T_b$ ≥ 2 s; slip 100%; wheels ±1% 100%; wheels +3% 75% (not on the straight); healthy 0/160.
+- **Meaning:**
+  1. **H2 holds, with caveats.**
+     - Gyro faults are roughly phase-independent (46–57 mm).
+     - Wheels +3% is invisible on a straight (12 vs. 11 mm healthy) and large in the arc (53 mm at entry).
+     - Wheels ±1% doesn't affect tracking (N equals healthy), because heading comes from the gyro.
+  2. **New: DR fails on long blackouts.** DR's *healthy* deviation is 19–42 mm (breach 30–70%) against 6–14 mm for the EKF. DR starts from the last noisy fix (σ_θ = 1°), and v·T·σ_θ = 0.5 × 4 × 0.0175 = 35 mm, the §6.4 mechanism at long-gap scale. On short gaps (Part A) DR ≈ EKF; on long ones the EKF is essential.
+  3. **Correction of my monitor-v2 log claim.** I wrote that ±1% "no longer triggers SA". **Wrong for our runs:** the offset needs about 30 s to absorb a speed-proportional residual, and our blackouts start 2–14 s in. SA alarms in 100% of ±1% blackouts, an unnecessary 2.6 s slowdown, so SA = SB for this harmless fault (the original rev-3 prediction). §5.3 is corrected.
+  4. **Limitation:** a persistent +3% radius error breaches the corridor at entry and mid for *every* policy, oracle included. Slowing can't fix a radius error; only calibration can (Borenstein & Feng, 1996).
+
+**2026-11-23 · Claude · Part C run (scaling, regret curve, lookahead; PROVISIONAL)**
+- **What:** C1 (540 runs: R {0.55, 1, 1.5} × v {0.3, 0.5, 0.7} × {gyro 1, wheels +3%} × {N, SA, SO}); C2 (240 runs: gyro b ∈ {0.2 … 2}°/s × {N, SA, SO}); C3 (120 runs: $L_d$ = 0.6 s × v). All 4 s blackouts from arc entry, seeds 1–10.
+- **Why:** H3. Do the §6 scalings hold, and how large is the regret of a delayed detection?
+- **Where:** `results/c_scaling/` (`runs.csv`, `summary_medians.csv`, `regret_c2.csv`); `figures/fig_detection_regret.*` (F3), `figures/fig_scaling.*` (F8).
+- **Result:**
+  - **Gyro error is ∝ v and independent of R.** N $e_{dev}$: about 26 mm at 0.3 m/s, 45–49 at 0.5, 56–63 at 0.7, for every R. That is 0.80–0.85 of ½vbT².
+  - **N − SO grows linearly with b:** 3.1, 6.3, 9.7, 18.4, 27.2, 44.5, 61.5 mm for b = 0.3 … 2°/s, about 0.75 of the straight-path slope (entry onset, so exposure is on the arc).
+  - **Regret SA − SO is within ±1.5 mm for every b** (CI includes 0 for b ≤ 1; −1.5 mm at b ≥ 1.5). Predicted +0.55 to +3.7 mm: the sign isn't reproduced, and the size is below the closed-loop resolution.
+  - **Detection delay follows h/b, slightly early:** 2.16 / 1.49 / 1.12 / 0.94 / 0.61 / 0.50 / 0.32 / 0.26 s for b = 0.2 … 2. Even 0.2°/s is detected, because the quantization noise floor (±0.3°) helps the first crossing. The effective $b_{min}$ is about 0.15°/s, not 0.3.
+  - **C3 ≈ C1**, so the lookahead rule doesn't drive the results.
+  - **Wheels +3% doesn't scale simply.** It rises with R at 0.7 m/s but not at 0.3 m/s; at R = 0.55 the blackout covers the whole arc.
+- **Meaning:**
+  - The closed-form model gets the **shape** right (∝ v, ∝ b, R-independent for gyro faults, $t_d$ ∝ 1/b). It overpredicts the magnitude by 15–25% when the exposure is on the arc.
+  - Detection regret is negligible in practice: the monitor is "as good as an oracle" here.
+  - The paper should present the formulas as an upper bound, with a measured 0.75–0.85 curvature factor.
+
+**2026-11-23 · Claude · Part D runs (burstiness): run 1 invalid → channel fix → run 2 (PROVISIONAL)**
+- **What:** Gilbert channel, λ = 0.10, mean burst {1, 4, 8, 16} × {HOLD, DR, EKF}, healthy, R = 1, v = 0.5. Run 1 used seeds 1–30. Run 2 used seeds 1–100, after a channel-model fix.
+- **Why:** H4, v1's matched-loss burstiness question.
+- **Where:** `results/d_burstiness/` (run 2; `summary_medians.csv`); `figures/fig_burstiness.*` (F9). Code: `sim/sensors.js` (makeLoss), `sim/experiments.js`.
+- **Result, run 1 (invalid):** the L̄ = 16 cell had a realized loss rate of 5% and a mean burst of 6.8. **Root cause:** the chain started in the *good* state, so the first burst at L̄ = 16 took about 144 slots of a ~190-slot run. V2 missed it because it tested 200,000 slots, where the start-up transient vanishes.
+- **Fix:** start the chain from its stationary distribution (bad with probability λ). V reran clean (all pass).
+- **Result, run 2** (100 seeds):
+  - **Ensemble loss rate:** 0.085–0.092 = 0.10 × 182/202 analysed slots (matched ✓). Realized mean burst 1.0 / 4.1 / 7.5 / 14.9.
+  - **HOLD peak:** 11.6 → 23.3 → 33.1 → 39.9 mm as the mean burst goes 1 → 4 → 8 → 16; breach 0 → 43 → 51 → 55%.
+  - **DR peak:** 11–13 mm. **EKF peak:** 8.0–8.6 mm, flat; breach ≤ 1%.
+  - 25 of 100 runs at L̄ = 16 contain no burst at all, so per-run rates are skewed; use ensemble numbers.
+- **Meaning:** **H4 is supported.** At a matched average loss rate, burstiness is what hurts a robot without onboard sensing (HOLD error triples). With encoders and a gyro, burstiness at this scale (≤ 1.6 s bursts) is irrelevant. That's v1's original question, answered: it matters only for the v1 robot.
+
+**2026-11-23 · Claude · Part S run (sensitivity; PROVISIONAL)**
+- **What:** 1,280 runs on the B0 grid, seeds 1–10. S1 gyro noise ×2; S2 camera noise ×2; S3 α ∈ {0.2, 0.5} (SB, SA); S4 50 Hz steering for every arm.
+- **Why:** robustness of the main claim (T1).
+- **Where:** `results/s_sensitivity/` (`summary_medians.csv`, `paired_sa_sb.csv`).
+- **Result** (4 s blackout, entry onset, median excess):
+
+  | Variant | N | SA | SB | Healthy false alarms |
+  |---|---|---|---|---|
+  | S1 gyro noise ×2 | 38.5 | 7.1 | 7.6 | 0 |
+  | S2 camera noise ×2 | 34.9 | 3.0 | 2.9 | 0 |
+  | S4 50 Hz steering | 39.1 | 5.4 | 5.7 | 0 |
+
+  - **S3, α trade-off.** α = 0.2: SA 1.5 / SB 2.2 mm, time lost SA 2.39 / SB 2.96 s (healthy SB 2.96). α = 0.5: SA 16.9 / SB 17.3 mm, SA 1.50 / SB 1.86 s.
+  - **Across all variants:** SA healthy time lost 0 s; SA − SB within ±0.7 mm; alarm delay 0.48–0.51 s.
+- **Meaning:** the main claim (SA as safe as SB, no healthy cost) is robust to 2× sensor noise, the steering rate and the speed cap. α sets the trade-off: smaller α means safer but slower, and SA keeps its zero healthy cost at every α.

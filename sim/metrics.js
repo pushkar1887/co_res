@@ -42,6 +42,9 @@ export function score(run, ref, W, tF) {
   const firstAfterFault = isFinite(tF) ? run.alarmOn.find((t) => t >= tF - 1e-9 && (W.tRet === undefined || t < W.tRet + 1e-9)) : undefined;
   const truncated = isFinite(W.t1) && !(lastT >= W.t1 - 1e-6) ? 1 : 0;
   const lostSlots = run.cam.ok.reduce((a, ok) => a + (ok ? 0 : 1), 0);
+  // realised burst statistics of the camera channel (Part D)
+  let bursts = 0, maxBurst = 0, cur = 0;
+  for (const ok of run.cam.ok) { if (!ok) { cur++; if (cur === 1) bursts++; maxBurst = Math.max(maxBurst, cur); } else cur = 0; }
   return {
     peak, refPeak, excess: peak - refPeak, devPeak, devSigned, signedPeak: sgn, breach: peak > p.corridor ? 1 : 0,
     survival: isFinite(tF) && !isNaN(breachT) ? breachT - tF : NaN, fracOut: n ? nOut / n : NaN, rms: n ? Math.sqrt(se / n) : NaN,
@@ -50,5 +53,6 @@ export function score(run, ref, W, tF) {
     alarmBeforeReturn: firstAfterFault !== undefined ? 1 : 0, falseAlarm: !isFinite(tF) && alarmsW.length > 0 ? 1 : 0,
     maxDgated: maxDg, nees: neesN ? neesS / neesN : NaN,
     onStraight1: overlap[0], onArc: overlap[1], onStraight2: overlap[2], lostSlots, truncated, bCal: run.bCal,
+    bursts, meanBurstRealized: bursts ? lostSlots / bursts : 0, maxBurst,
   };
 }

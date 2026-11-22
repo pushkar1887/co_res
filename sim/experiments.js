@@ -41,7 +41,7 @@ export const EXPERIMENTS = {
     ...grid('C3', {}, { v: [0.3, 0.5, 0.7], fault: [{ kind: 'gyro', b: 1.0 }, { kind: 'scale', eps: 0.03 }], arm: ['N', 'SA'], seed: range(1, 10) },
       (a) => blackoutSpec({ ...a, Tb: 4, onset: 'entry', over: { R: 1.0, v: a.v, Ld: 0.6 * a.v } }, {})),
   ] },
-  D: { folder: 'd_burstiness', specs: () => grid('D', P_B, { meanBurst: [1, 4, 8, 16], arm: ['hold', 'dr', 'ekf'], seed: range(1, 30) },
+  D: { folder: 'd_burstiness', specs: () => grid('D', P_B, { meanBurst: [1, 4, 8, 16], arm: ['hold', 'dr', 'ekf'], seed: range(1, 100) },
     (a, params) => ({ params, arm: a.arm, seed: a.seed, loss: { kind: 'ge', lambda: 0.10, meanBurst: a.meanBurst }, fault: { kind: 'none' } })) },
   S: { folder: 's_sensitivity', specs: () => [
     ...grid('S1', P_B, { ...b0Axes, seed: range(1, 10) }, (a, p) => blackoutSpec({ ...a, variant: 'gyroNoise2', over: { gyroNoiseScale: 2 } }, p)),
