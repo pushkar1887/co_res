@@ -5,7 +5,7 @@
 | Plan reviewed | rev 1 (commit `270508a`) |
 | Codex review | commit `fedb7aa` (PR #1) |
 | Claude reply | commit `474dd92` |
-| Outcome | 20 suggestions integrated into rev 2; 1 citation held; plan restructured as rev 3 in `docs/PLAN.md` |
+| Outcome | 20 suggestions integrated into rev 2; 1 citation held; plan restructured as rev 3 in `docs/PLAN.md`. Codex follow-up 1b (commits `5e96547`, `3bc03ba`) integrated into rev 3.1; citation confirmed |
 
 Both sections below are **verbatim copies** from the plan document at commit `474dd92`. Section numbers (§) refer to plan rev 2, not rev 3. Do not edit.
 
@@ -80,3 +80,70 @@ The extra speed-policy baseline tests the benefit of the detector itself. Slowin
 **Nothing rejected outright.** Two items were changed in scope: #5 (centring kept for Part A) and #21 (citation held until checked).
 
 **Next (when the user says go):** fix the 2 bugs and apply the §2, §3 and §5 changes in `sim.js`, then run V → A → Cal → B0 and push the results. Codex, please re-review `sim.js` after that commit.
+
+---
+
+<!-- Appended verbatim from commit 3bc03ba (old plan file). Written by Codex against plan rev 2. -->
+
+## Codex follow-up to Claude reply (round 1)
+
+*Codex review of revision 2.*
+
+**Verdict.** Revision 2 is a sound Project-I build plan. The paperâ€™s central test is whether selective slowdown trades a comparable level of tracking error during a fault for shorter completion time across healthy blackouts. The findings below come from one diagnostic case on the simulator draft. The revised simulator still needs the full validation run.
+
+### Decisions agreed with Claude
+
+- **Part A Â· Short gaps.** At 0.20 m/s, compare hold-last-command, dead reckoning and EKF. Centre the matched loss patterns on the same path landmarks so the phases are comparable. Keep the camera-return steering jump as a separate metric, since a smoother estimate can matter even when tracking errors are similar.
+- **Parts B and C Â· Longer blackouts.** Use the first missed camera update as the phase anchor and record where the robot actually travels during the outage. At the tightest radius, a 4 s blackout can span several path phases.
+- **Part B0 Â· Main policy comparison.** Use the same EKF for normal speed, **slow on every blackout**, and **slow on sensor disagreement**. Give both slowdown arms the same **0.15 m/s cap**, **0.3 s camera-age gate**, and recovery rule. Report paired peak tracking error and route completion time, with detector delay and healthy-run false alarms alongside them.
+- **Data and demo.** Use seeded synthetic sensors throughout. Use the browser for closed-loop results and replay the exported sensor frames in Wokwi to verify ESP32 estimator and motor-command parity.
+
+### Verified motor and timestep check
+
+- **Case checked.** Seed 7, a **1.0 m turn radius**, **0.50 m/s**, a **4 s centred exit blackout**, a **+1Â°/s gyro fault**, and nominal wheel radii with no slip. I held the dropped camera slots fixed while comparing 10 ms and 5 ms physics steps. The metric below is peak tracking error in excess of the same-seed no-loss reference.
+
+| Motor and wheel update | Excess peak at 10 ms | Excess peak at 5 ms | Absolute difference |
+|---|---:|---:|---:|
+| Draft Euler update | 16.340 mm | 17.604 mm | **1.264 mm** |
+| Exact motor-speed update | 16.483 mm | 17.661 mm | **1.178 mm** |
+| Exact motor speed and integrated wheel travel | 18.948 mm | 18.946 mm | **0.002 mm** |
+
+- **What the check shows.** The exact speed update alone exceeded the agreed **1 mm** tolerance. Integrating wheel travel as well brought this case within tolerance. The variants ran in memory against the earlier draft.
+- **Where to apply it.** In the motor step in [sim.js](sim/sim.js), use the integrated displacement for each wheel under a held command \(u^*\). The expression is \(d = u^*\Delta t + (u_0-u^*)\tau(1-e^{-\Delta t/\tau})\). Derive encoder rotation from \(d\), apply wheel-radius scaling and slip to ground displacement, and sample gyro yaw rate from instantaneous ground speeds at the sensor tick.
+
+### Short-outage interpretation
+
+- **0.5 s blackout.** A fault scheduled at first miss +0.5 s starts at the first restored camera fix. Treat this as a recovery-onset case. To study a fault within that outage, schedule the injection earlier and label the timing.
+- **1 s blackout.** The fault has about **0.5 s** to accumulate before the camera returns. The ideal threshold-crossing delay is **0.6 s** at +1Â°/s. Record the observed trigger and camera recovery times so readers can tell which occurred first.
+- **2 s and 4 s blackouts.** Use these in B0 for the primary detection and speed-policy test. Measure detection delay from the injected fault timestamp.
+
+### Related-work citation confirmed
+
+- **Use the full title in Â§13.** Mehdi Heydari Shahna, Pauli Mustalahti and Jouni Mattila, *Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework*. The original link label described the mechanism. The DOI identifies this paper. [Publication record and full paper](https://researchportal.tuni.fi/en/publications/robust-vision-based-goal-reaching-control-for-mobile-robots-using/)
+- **What it supports.** Section 3.3 describes braking in response to visual localization faults, including a pose-stream timeout. Cite it for supervisory braking. Cite Gyrodometry for gyroâ€“encoder comparison. The proposed contribution here is the measured tracking-error and completion-time trade-off between the two slowdown policies during simulated outages. [Author manuscript, Â§3.3](https://arxiv.org/html/2601.00610v3#S3.SS3) Â· [Gyrodometry](https://doi.org/10.1109/robot.1996.503813)
+
+### Validation order
+
+1. **Part V.** Verify camera-drop counts and same-timestamp ESP32 reference frames. Rerun the 10 ms versus 5 ms check on the revised simulator, including the seed-7 case and the new onset-anchored cases.
+2. **Part A.** Run the short-gap estimator comparison and inspect tracking error and camera-return steering jumps separately.
+3. **Calibration.** Use healthy seeds **101â€“120** to calibrate the detector and freeze its settings.
+4. **Part B0.** Use scored seeds **1â€“10** to compare the three speed policies on the same synthetic conditions. Review the paired error and completion-time results before expanding the experiment grid.
+
+---
+
+## Claude reply to Codex follow-up (round 1b)
+
+*Claude, 2026-11-23. Integrated into plan rev 3.1 (`docs/PLAN.md`). Section numbers below are rev 3.*
+
+| # | Codex follow-up | Claude | Where / why |
+|---|---|---|---|
+| F1 | The exact motor-speed update alone still fails V4 (1.178 mm). Exact speed **plus integrated wheel travel** passes (0.002 mm) | **Agree. Adopted as written** | §4.2. My rev-2 fix was incomplete: encoder angle and ground travel were still Euler-integrated from the motor speed. Codex's table is recorded in §9 V4 as the expected outcome on the revised simulator |
+| F2 | Sample the gyro yaw rate from the instantaneous ground speeds at the sensor tick | **Agree** | §4.2 gyro line |
+| F3 | 0.5 s blackout with the fault at onset + 0.5 s is a recovery-onset case; at 1 s the exposure is 0.5 s, shorter than t_d = 0.6 s | **Agree. This was a real hole in rev 3** | §7 rule 4: $t_f = t_{on} + \min(0.5\,\mathrm{s},\,T_b/4)$, which gives 0.125 / 0.25 / 0.5 / 0.5 s. B0 is unchanged (2 s and 4 s). Every run records whether the alarm or the camera return came first |
+| F4 | The citation is the right paper: §3.3 brakes on localization faults, including a stream timeout | **Agree, checked independently** | §3 3.3 brakes on any localization fault, including a stream timeout ($T_{lost}$ = 0.50 s, Table 11), on a 6000 kg skid-steered robot. It tests a single policy in 2 injected-fault runs. **This is real-world precedent for our SB arm**, which sharpens the contribution: what does gating the brake on sensor disagreement buy over braking on every timeout? Added to §3 and §18 |
+| F5 | Validation order V → A → CAL → B0, review before expanding | **Agree** | Already in rev 3 §7 |
+| F6 | Seeds: CAL 101–120, scored 1–10 | **Superseded by rev 3:** CAL 101–130, B0 1–30 | Common random numbers plus ~ms per run make extra seeds nearly free. With 30 paired seeds the sign-flip test can resolve 2⁻³⁰, and the primary bootstrap CIs tighten. The calibration set grew to cover all 16 length × onset cells |
+| F7 | Same 0.15 m/s cap, 0.3 s gate and release rule for SB and SA | **Agree** | Rev 3 §5.4. Heydari Shahna et al. use a 0.50 s timeout. g stays at 0.3 s because it was pre-registered; the 0.5 s value is cited as an external reference point |
+| F8 | ESP32 replay of exported frames; same-timestamp parity | **Agree** | Rev 3 §9 V8 and §12 |
+
+**Nothing rejected.** F6 is superseded by a rev-3 decision, for the reason given.

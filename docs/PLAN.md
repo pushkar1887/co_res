@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Version** | rev 3, 2026-11-23 |
+| **Version** | rev 3.1, 2026-11-23 (rev 3 plus Codex follow-up 1b: exact wheel-travel integration, short-blackout fault timing, SB precedent) |
 | **Status** | Design complete, waiting for Codex round 2 (§19). **No experiment has been run on this design.** `sim/sim.js` is draft v0: untested, 2 known bugs, parameters not yet updated to rev 3 |
 | **People** | Pushkar: PI, paper, viva · Claude: simulator, experiments, analysis, firmware · Codex: independent review, reference implementation |
 | **Course** | DSEU BT-PR701 Project-I (4 credits). Target: a 6-page IEEE-format workshop paper |
@@ -101,11 +101,12 @@ Decision rules are fixed **before** any scored run. The tests are defined in §8
 |---|---|---|
 | Borenstein & Feng, ICRA 1996 (Gyrodometry) | Switches heading source when gyro and odometry disagree (bumps) | Disagreement used to **gate speed during camera blackouts**; threshold design window; regret analysis |
 | Batavia, Roth & Singh, IROS 2002 | Pure Pursuit + EKF (GPS, encoders, gyro) through GPS outages on a field robot | Controlled fault injection, paired policy comparison, closed-form predictions |
+| **Heydari Shahna, Mustalahti & Mattila, RAS 2026, §3.3** | Supervisor **brakes on any localization fault**, including a pose-stream timeout ($T_{lost}$ = 0.50 s, Table 11), on a 6000 kg skid-steered robot. Single policy; 2 injected-fault runs | **Precedent for our SB arm.** We measure what gating the brake on gyro–encoder disagreement (SA) buys over SB, and what it costs |
 | Sinopoli et al. 2004; Huang & Dey 2007; Kluge et al. 2010 | KF/EKF stability under intermittent and Markov loss | Corridor safety and speed policy, not covariance stability |
 | Carbonell et al. 2024; Ferrari et al. 2026 | Networked path following under packet drops or Wi-Fi timing | Interaction of onboard sensor faults with blackouts by turn phase |
 | Liu, Candell & Moayeri 2017 | Random vs. bursty loss at a matched rate (process control) | Same matched-rate idea for a mobile robot (Part D) |
 
-**Literature gap still to close (before writing §II):** uncertainty-aware or safe speed limiting under degraded localization, and localization-fault supervision for AMRs. The DOI Codex proposed for the latter doesn't match its label (§18).
+**Literature gap still to close (before writing §II):** uncertainty-aware or safe speed limiting under degraded localization, and other AMR localization-fault supervisors besides Heydari Shahna et al.
 
 ---
 
@@ -155,9 +156,13 @@ flowchart LR
 ### 4.2 Model equations
 
 - **Plant:** $\dot x=v\cos\theta,\ \dot y=v\sin\theta,\ \dot\theta=\omega$, with $v=\tfrac{g_R+g_L}{2}$, $\omega=\tfrac{g_R-g_L}{b}$, and ground speed $g_i=\dot\phi_i\,r(1+\varepsilon_i)(1-s_i(t))$. Integrated with midpoint heading.
-- **Motors** (exact for a piecewise-constant command): $u_i \leftarrow u_i^*+(u_i-u_i^*)e^{-\Delta t/\tau}$, with $u_{L,R}^*=\mathrm{sat}(v_c\mp b\,\omega_c/2)$ and $\dot\phi_i=u_i/r$.
+- **Motors and wheel travel** (both exact for a command held over Δt; Codex 1b): $u_{L,R}^*=\mathrm{sat}(v_c\mp b\,\omega_c/2)$.
+  - Speed: $u_i \leftarrow u_i^*+(u_i-u_i^*)e^{-\Delta t/\tau}$.
+  - Displacement: $\Delta\ell_i=u_i^*\Delta t+(u_{i,0}-u_i^*)\,\tau(1-e^{-\Delta t/\tau})$.
+  - Encoder rotation is $\Delta\phi_i=\Delta\ell_i/r$. Ground displacement is $\Delta\ell_i(1+\varepsilon_i)(1-s_i)$, and the pose update uses its mean and difference with midpoint heading.
+  - Without the displacement integral, V4 fails (1.178 mm); with it, V4 passes (0.002 mm, Codex check).
 - **Encoders:** $n_i=\lfloor\phi_i N/2\pi\rfloor$, $d_i=2\pi r\,\Delta n_i/N$. They count wheel *rotation*, so slip and radius error are invisible to them.
-- **Gyro:** $\omega_g=\omega+b_0+b_w(t)+b_{GM,k}+b_f\mathbb{1}[t\ge t_f]+\eta_k$, where:
+- **Gyro:** $\omega_g=\omega+b_0+b_w(t)+b_{GM,k}+b_f\mathbb{1}[t\ge t_f]+\eta_k$. Here ω is the yaw rate from the **instantaneous** ground speeds at the sensor tick, and:
   - $\eta_k\sim\mathcal N(0,N^2/\Delta t_s)$;
   - $b_{GM,k+1}=\phi b_{GM,k}+\sigma_{GM}\sqrt{1-\phi^2}\,w_k$, with $\phi=e^{-\Delta t_s/\tau_{GM}}$.
 - **Camera:** $z=[x,y,\theta]^\top+\mathcal N(0,\mathrm{diag}(\sigma_{xy}^2,\sigma_{xy}^2,\sigma_\theta^2))$. It is delivered only if its 100 ms slot isn't lost. Noise is drawn for every slot to keep the random streams paired.
@@ -298,7 +303,7 @@ Total: about 10,000 scored runs plus no-loss references. In a Web Worker that's 
 2. **Window.** $W=[t_{on},\,t_{ret}+3\,\mathrm{s}]$, where $t_{ret}$ is the first delivered report. A truncated window is flagged, never silently shortened (V10).
 3. **Reference.** Same seed, arm, faults and fault timing, with no camera loss. Excess is computed against this.
 4. **Faults.**
-   - Gyro step at $t_f=t_{on}+0.5$ s, with the timestamp recorded.
+   - Gyro step at $t_f=t_{on}+\min(0.5\,\mathrm{s},\,T_b/4)$, i.e. 0.125 / 0.25 / 0.5 / 0.5 s for $T_b$ = 0.5 / 1 / 2 / 4 s (Codex 1b). Without the cap, a 0.5 s blackout would put the fault exactly at camera return. The timestamp is recorded, along with whether the alarm or the camera return came first.
    - Slip on the right wheel, s = 0.1, from $t_{on}+0.3$ s for 0.5 s.
    - Wheel-radius faults last the whole run.
 5. **Seeds.** CAL 101–130; scored 1–30. Same seed means the same noise for every arm (CRN).
@@ -351,7 +356,7 @@ Total: about 10,000 scored runs plus no-loss references. In a Web Worker that's 
 | V1 | Determinism | Same config + seed run twice gives identical CSV rows |
 | V2 | Loss schedule | Logged dropped slots equal the scheduled ones exactly (all patterns, blackouts, Gilbert) |
 | V3 | No-loss baselines | $e_{pk}$ < 15 mm for every R×v used. Failing configs are excluded from breach metrics and reported |
-| V4 | Timestep convergence | $\lvert\Delta e_{ex}\rvert$ < 1 mm between Δt = 10 ms and 5 ms on 12 configs, **including Codex's failing case** (seed 7, R = 1, v = 0.5, 4 s exit, +1°/s) |
+| V4 | Timestep convergence | $\lvert\Delta e_{ex}\rvert$ < 1 mm between Δt = 10 ms and 5 ms on 12 configs, **including Codex's case** (seed 7, R = 1, v = 0.5, 4 s exit, +1°/s). Codex measured: draft Euler 1.264 mm, exact speed only 1.178 mm, exact speed + wheel travel 0.002 mm |
 | V5 | EKF consistency | Mean 2-D NEES in [1.0, 3.5] on no-loss healthy runs |
 | V6 | Gyro generator | Allan deviation of a 1 h synthetic stationary log recovers ARW within ±10% and the bias-instability floor within ±30% |
 | V7 | Drift envelopes | Open-loop straight drive without camera: drift vs. §6.3 within 10% for t = 1–4 s |
@@ -551,7 +556,8 @@ co_res/
 |---|---|---|
 | 1 | `270508a` | Merged Claude v2 + Codex v2 |
 | 2 | `474dd92` | Codex round 1 integrated (blanket-slowdown baseline, onset anchoring, calibration seeds, B0, Wokwi timing, wheel-size sign fix) |
-| 3 | this commit | Restructured. Every item below is an issue found in rev 2, its consequence, and the fix: |
+| 3.1 | this commit | Codex follow-up 1b (`docs/reviews/round-01.md`): exact wheel-travel integration (§4.2, V4); gyro sampled from instantaneous speeds; short-blackout fault timing $\min(0.5, T_b/4)$ (§7); Heydari Shahna et al. 2026 verified and added as SB precedent (§3, §18) |
+| 3 | `4b85040` | Restructured. Every item below is an issue found in rev 2, its consequence, and the fix: |
 
 - **Null claim "DR ≈ EKF" had no test.** Absence of significance would have been reported as equivalence. → TOST with δ_A (H1b).
 - **SA vs. SB ordering follows from how the policies are built.** A reviewer would call the result trivial. → Added oracle SO and a closed-form regret (§6.7); the claims are now magnitudes.
@@ -578,7 +584,7 @@ co_res/
 11. Ferrari et al., "Quantifying the Trajectory Tracking Accuracy in UGVs: The Role of Traffic Scheduling in Wi-Fi-Enabled Time-Sensitive Networking," *Sensors*, 2026. doi:10.3390/s26030881
 12. Coulter, "Implementation of the Pure Pursuit Path Tracking Algorithm," CMU-RI-TR-92-01, 1992 (not re-checked).
 13. Page, "Continuous inspection schemes," *Biometrika*, 1954 (not checked; CUSUM extension).
-14. **Not yet usable:** doi:10.1016/j.robot.2026.105710, proposed by Codex as "localization fault supervision". It resolves to Heydari Shahna et al., "Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework," *RAS*, 2026. Codex: please confirm or replace.
+14. Heydari Shahna, Mustalahti & Mattila, "Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework," *Robotics and Autonomous Systems*, 2026. doi:10.1016/j.robot.2026.105710. §3.3 and Table 11 were checked in the arXiv HTML (2601.00610v3); cite them for supervisory braking on localization loss.
 
 ---
 
