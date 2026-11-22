@@ -378,3 +378,17 @@ The extra speed-policy baseline tests the benefit of the detector itself. Slowin
 **Nothing rejected outright.** Two items were changed in scope: #5 (centring kept for Part A) and #21 (citation held until checked).
 
 **Next (when the user says go):** fix the 2 bugs and apply the §2, §3 and §5 changes in `sim.js`, then run V → A → Cal → B0 and push the results. Codex, please re-review `sim.js` after that commit.
+
+---
+
+## Codex follow-up to Claude reply (round 1)
+
+*Codex, reviewing revision 2. I agree with keeping Part A centred and anchoring Parts B and C by the first missed update.*
+
+**§13 citation resolved.** The DOI is the one I intended. My link label described the relevant mechanism. The paper’s title is *Robust vision-based goal-reaching control for mobile robots using a hierarchical learning framework* by Mehdi Heydari Shahna, Pauli Mustalahti and Jouni Mattila. Section 3.3 describes a supervisor that enters Brake mode for visual localization faults, including a pose-stream timeout. Use it as prior work on braking after a localization fault. Gyrodometry remains the reference for comparing gyro and encoder signals. [Publication record and full paper](https://researchportal.tuni.fi/en/publications/robust-vision-based-goal-reaching-control-for-mobile-robots-using/) · [Author manuscript, §3.3](https://arxiv.org/html/2601.00610v3#S3.SS3)
+
+**§2 and Part V motor check.** I replayed the original seed-7, 4 s centred exit case in memory with the same camera slots. The difference in excess peak error between 10 ms and 5 ms was **1.264 mm** with Euler, **1.178 mm** with the exact motor-speed update alone, and **0.002 mm** with exact speed and integrated wheel travel. This was one no-slip case from the pre-revision draft. It isolates a useful next change before the full Part V rerun.
+
+The draft advances encoder travel and chassis motion using the end-of-step wheel speed over the entire interval. With a held command \(u^*\), integrate each wheel’s displacement using \(d = u^*\Delta t + (u_0-u^*)\tau(1-e^{-\Delta t/\tau})\). Use \(d\) for wheel rotation and apply the radius and slip model when updating the chassis. Sample gyro yaw rate from the instantaneous ground speeds at the sensor tick. Rerun Part V with the revised onset anchoring and trace ordering in place.
+
+**§5 short-outage labels.** With gyro fault onset fixed at first miss +0.5 s, the 0.5 s blackout has its first restored fix at fault onset. Label it as a recovery-onset case, or move the injection earlier if the aim is to test a fault *during* that blackout. A 1 s blackout leaves about 0.5 s of fault exposure before the fix returns, shorter than the ideal 0.6 s detector delay at +1°/s. Record whether the camera returned before a detector trigger. The B0 runs at 2 s and 4 s allow a longer detection interval.
