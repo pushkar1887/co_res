@@ -13,7 +13,7 @@ import { makeMonitor } from './monitor.js';
 import { purePursuit, policySpeed } from './control.js';
 
 const LOG_KEYS = ['t', 'x', 'y', 'th', 'xe', 'ye', 'the', 'e', 's', 'seg', 'vc', 'wc', 'uL', 'uR', 'uLc', 'uRc',
-  'alarm', 'D', 'missAge', 'P00', 'P01', 'P11', 'dnL', 'dnR', 'wg', 'bias'];
+  'alarm', 'D', 'monO', 'missAge', 'P00', 'P01', 'P11', 'dnL', 'dnR', 'wg', 'bias', 'bhat'];
 
 export function simulate(cfg) {
   const p = { ...DEFAULTS, ...cfg };
@@ -22,7 +22,8 @@ export function simulate(cfg) {
   const seed = p.seed ?? 1, f = p.faults || {}, tF = f.onset ?? Infinity;
   const path = makePath(p.R, p.L1, p.L3), robot = makeRobot(p, f);
   const readEnc = makeEncoders(p, robot), gyro = makeGyro(p, seed, f), camera = makeCamera(p, seed);
-  const lost = makeLoss(p.loss, seed, p), monitor = makeMonitor(p);
+  const lost = makeLoss(p.loss, seed, p);
+  let monitor = null;      // created at the end of calibration, starting from the calibrated bias
   const sensEvery = Math.round(1 / (p.sensHz * p.dt)), camEvery = Math.round(1 / (p.camHz * p.dt));
   const steerEvery = Math.round(1 / (p.steerHz * p.dt)), dtS = 1 / p.sensHz;
   const kc = p.camNoiseScale, Rd = [(kc * p.camSigXY) ** 2, (kc * p.camSigXY) ** 2, (kc * p.camSigTh) ** 2];
@@ -32,7 +33,7 @@ export function simulate(cfg) {
   let tFix = 0, missed = 0, alarm = false, D = 0, vc = 0, wc = 0, jumpPending = false, freshSinceSteer = false;
   const L = Object.fromEntries(LOG_KEYS.map((k) => [k, []]));
   const cam = { j: [], ok: [], z: [] }, steerJumps = [], alarmOn = [];
-  let finish = NaN, last = { dnL: 0, dnR: 0, wg: 0, bias: 0 }, thCumPrev = 0;
+  let finish = NaN, last = { dnL: 0, dnR: 0, wg: 0, bias: 0 }, thCumPrev = 0, monO = 0;
   const missAgeAt = (t) => (missed > 0 ? t - (tFix + 1 / p.camHz) : -1);
 
   const nMax = Math.round(p.tMax / p.dt);
@@ -50,7 +51,7 @@ export function simulate(cfg) {
       if (!calibrated) {
         if (!moving) { calSum += wg; calN++; }
         else {
-          bCal = calSum / Math.max(calN, 1); calibrated = true; X[3] = bCal;
+          bCal = calSum / Math.max(calN, 1); calibrated = true; X[3] = bCal; monitor = makeMonitor(p, bCal);
           P[3][3] = (p.gyroNoiseScale * p.gyroARW) ** 2 / (dtS * Math.max(calN, 1));
         }
       }
@@ -58,7 +59,7 @@ export function simulate(cfg) {
         const ds = 0.5 * (enc.dL + enc.dR);
         if (arm.est === 'dr') drStep(X, ds, wg - bCal, dtS);
         else if (arm.est === 'ekf') ekfPredict(X, P, ds, wg, dtS, p);
-        D = monitor(wg - (arm.est === 'ekf' ? X[3] : bCal), enc.dL, enc.dR);
+        const m = monitor(wg, enc.dL, enc.dR, missed === 0); D = m.D; monO = m.o;
         if (arm.est !== 'hold' && moving && !alarm && missAgeAt(t) >= p.monGate - 1e-9 && Math.abs(D) > p.monThr) {
           alarm = true; alarmOn.push(t);
         }
@@ -90,7 +91,7 @@ export function simulate(cfg) {
       const st = robot.st, pr = path.project(st.x, st.y), [uLc, uRc] = robot.wheelCmd(vc, wc);
       const row = { t, x: st.x, y: st.y, th: st.th, xe: X[0], ye: X[1], the: X[2], e: pr.e, s: pr.s, seg: path.segment(pr.s),
         vc, wc, uL: st.uL, uR: st.uR, uLc, uRc, alarm: alarm ? 1 : 0, D, missAge: missAgeAt(t),
-        P00: P[0][0], P01: P[0][1], P11: P[1][1], ...last };
+        P00: P[0][0], P01: P[0][1], P11: P[1][1], ...last, bhat: arm.est === 'ekf' ? X[3] : bCal, monO };
       for (const key of LOG_KEYS) L[key].push(row[key]);
       if (moving && pr.s >= path.total - 0.05) { finish = t; break; }
     }

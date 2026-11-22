@@ -242,8 +242,13 @@ The target is $g=\Gamma(s_p+L_d)$, where $s_p$ is the projection of the *estimat
 
 ### 5.3 Consistency monitor
 
-- **Heading sources:** $\theta_g(t)=\int(\omega_g-\hat b)\,dt$ and $\theta_e(t)=\sum(d_R-d_L)/b$.
-- **Residual:** $D(t)=[\theta_g(t)-\theta_g(t-T_w)]-[\theta_e(t)-\theta_e(t-T_w)]$.
+- **Rate residual (monitor v2, rev 3.4):** $r_k=\omega_g-\omega_{enc}$, with $\omega_{enc}=(d_R-d_L)/(b\,\Delta t_s)$.
+- **Own offset:** $o\leftarrow o+(r_k-o)\,\Delta t_s/\tau_m$, with $\tau_m$ = 10 s. It is updated **only while the camera is fresh** and frozen during blackouts, and starts at $b_{cal}$.
+- **Residual:** $D(t)=\sum_{t-T_w}^{t}(r_k-o)\,\Delta t_s$. D measures the *change* in gyro–encoder disagreement since the blackout began.
+- **Why v2 replaced v1.** v1 referenced the EKF bias $\hat b$. With the agile $q_b$ of §5.1, $\hat b$ wanders 0.09°/s RMS once the robot is moving, against 0.018°/s right after calibration. CAL then gave 7/480 healthy false alarms and needed h = 0.95° > $h_{max}$: **K2 for v1** (§20).
+- **Trade-off of v2:** persistent faults are partly absorbed into o while the camera is available.
+  - Wheels ±1% (speed-proportional) are fully absorbed, so they no longer trigger SA.
+  - Wheels +3% shows up only when the turn rate *changes* during the blackout.
 - **Alarm:** fires when $\lvert D\rvert>h$ **and** $t-t_{fix}>g$. It clears at the next delivered report.
 
 ### 5.4 Speed policies (Parts B, C, S; all on the same EKF)
@@ -594,7 +599,8 @@ co_res/
 |---|---|---|
 | 1 | `270508a` | Merged Claude v2 + Codex v2 |
 | 2 | `474dd92` | Codex round 1 integrated (blanket-slowdown baseline, onset anchoring, calibration seeds, B0, Wokwi timing, wheel-size sign fix) |
-| 3.3 | this commit | M1 verification fixes: gyro reports the interval-mean yaw rate (§4.2); EKF $q_b$ (3e-6)² → (3e-4)² by a pre-stated rule (§5.1); V3 blocking set and V7 drift definition made to match §9's intent. Draft `sim/sim.js` replaced by 14 modules |
+| 3.4 | this commit | **Monitor v2** (§5.3): encoder-referenced offset replaces the EKF bias after monitor v1 hit K2 in CAL. Recalibrated on the same calibration seeds (scored seeds untouched): max healthy \|D\| 0.318°, 0 false alarms. **Frozen for all scored runs:** h = 0.6°, $T_w$ = 2 s, g = 0.3 s, $\tau_m$ = 10 s |
+| 3.3 | `db6fe08` | M1 verification fixes: gyro reports the interval-mean yaw rate (§4.2); EKF $q_b$ (3e-6)² → (3e-4)² by a pre-stated rule (§5.1); V3 blocking set and V7 drift definition made to match §9's intent. Draft `sim/sim.js` replaced by 14 modules |
 | 3.2 | `8bac4b7` | Single-file project: rules (§0), discussion log (§19) and run log (§20) merged into `PLAN.md`; `AGENTS.md`, `CLAUDE.md`, `README.md`, review files removed |
 | 3.1 | `73f1263` | Codex follow-up 1b (§19): exact wheel-travel integration (§4.2, V4); gyro sampled from instantaneous speeds; short-blackout fault timing $\min(0.5, T_b/4)$ (§7); Heydari Shahna et al. 2026 verified and added as SB precedent (§3, §18) |
 | 3 | `4b85040` | Restructured. Every item below is an issue found in rev 2, its consequence, and the fix: |
@@ -854,3 +860,19 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   1. On short gaps, the EKF's advantage over DR is filtering camera noise (estimate error, steering smoothness), not tracking. That confirms the Codex-setting prototype with 20 seeds.
   2. **§6.1 is falsified in the presence of noise.** HOLD's worst phase is mid-turn (9.7 mm), not entry or exit. Holding a command computed from a *noisy* last fix costs error even on a constant arc; §6.1's "mid-turn is free" holds only for noise-free fixes. The paper must say this; it's a better finding than the v1 claim.
   3. Short gaps alone stay at a few mm, all inside the ±30 mm corridor. The paper's weight rests on B0.
+
+**2026-11-23 · Claude · CAL run 1 → K2 for monitor v1 → monitor v2 → CAL run 2 (freeze)**
+- **What:** CAL = 480 healthy runs (R = 1, v = 0.5; $T_b$ {0.5, 1, 2, 4} × onset {pre, entry, mid, exit}; calibration seeds 101–130, never scored). Freeze rule from §7, applied with `analysis/hypothesis_tests.py CAL`.
+- **Why:** freeze the monitor threshold before any scored B0 seed.
+- **Where:** `results/cal_monitor/` (`runs.csv`, `cal_decision.json`). Code: `sim/monitor.js` (v2), `sim/simulate.js`, `sim/params.js` (`monRefTau`).
+- **Result, run 1 (monitor v1, residual referenced to the EKF bias):**
+  - Max healthy |D| = 0.76°, p99 = 0.62°, **7/480 false alarms** at h = 0.6°.
+  - The rule needs h = 1.25 × 0.76 = 0.95° > $h_{max}$ = 0.86°, so **K2 triggered**.
+  - Diagnosis, confirmed directly: the EKF bias error is 0.018°/s RMS at t = 2 s but 0.09°/s at t = 5–17 s. The agile $q_b$ makes $\hat b$ absorb camera heading noise, and v1 inherited that wander. The tell: the only low cell was the "pre" 4 s blackout (0.32°), which starts 1 s after calibration.
+- **Change:** monitor v2 uses its own offset o (10 s low-pass of gyro − encoder yaw rate, updated only while the camera is fresh, frozen in blackouts). The design came from the diagnosis, not from tuning h. Scored seeds 1–30 were untouched.
+- **Result, run 2 (v2, same calibration seeds):** max healthy |D| = **0.318°**, p99 = 0.304°, median 0.227°, **0 false alarms in 480**. It no longer grows with blackout length (0.26–0.32° in every cell). The rule keeps **h = 0.6°**; the margin is 1.9×. V was rerun on this code: all of V1–V7 and V10 still pass.
+- **Meaning:**
+  - The negative result for v1 is real and belongs in the paper. Referencing a consistency monitor to an adaptive EKF bias makes it inherit the filter's tuning noise.
+  - v2's floor (0.32°) sits at the encoder-quantization bound (0.33°, §6.8), so h could later go down to about 0.45° for faster detection. h stays at 0.6° as pre-registered.
+  - Cost of v2: persistent wheel faults are absorbed into o. The ±1% fault no longer triggers SA (§6.3's prediction SA = SB is now SA = N), and +3% appears only when the turn rate changes.
+  - **Frozen for scored runs at this commit:** h = 0.6°, $T_w$ = 2 s, g = 0.3 s, $\tau_m$ = 10 s, $q_b$ = (3e-4)².

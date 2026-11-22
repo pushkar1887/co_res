@@ -1,7 +1,7 @@
 {
-  "created": "2026-11-22T22:11:26.079Z",
-  "seconds": 0.63,
-  "paramsHash": "512c92c7",
+  "created": "2026-11-22T22:16:47.349Z",
+  "seconds": 0.468,
+  "paramsHash": "f9c9f7cf",
   "defaults": {
     "R": 1,
     "L1": 3,
@@ -33,6 +33,7 @@
     "monWin": 2,
     "monThr": 0.010471975511965976,
     "monGate": 0.3,
+    "monRefTau": 10,
     "alpha": 0.3,
     "corridor": 0.03,
     "scoreTail": 3,

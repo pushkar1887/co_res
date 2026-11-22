@@ -1,0 +1,93 @@
+{
+  "runs": 480,
+  "max_abs_D_deg": 0.31812631305270983,
+  "p99_abs_D_deg": 0.30397359987737355,
+  "median_abs_D_deg": 0.22742401157056275,
+  "false_alarms": 0,
+  "h_deg": 0.6,
+  "decision": "keep h = 0.6 deg",
+  "h_min_deg": 0.42,
+  "h_max_deg": 0.86,
+  "by_cell_max_deg": [
+    {
+      "Tb": 0.5,
+      "phase": "entry",
+      "maxD_deg": 0.262
+    },
+    {
+      "Tb": 0.5,
+      "phase": "exit",
+      "maxD_deg": 0.285
+    },
+    {
+      "Tb": 0.5,
+      "phase": "mid",
+      "maxD_deg": 0.303
+    },
+    {
+      "Tb": 0.5,
+      "phase": "pre",
+      "maxD_deg": 0.27
+    },
+    {
+      "Tb": 1.0,
+      "phase": "entry",
+      "maxD_deg": 0.277
+    },
+    {
+      "Tb": 1.0,
+      "phase": "exit",
+      "maxD_deg": 0.285
+    },
+    {
+      "Tb": 1.0,
+      "phase": "mid",
+      "maxD_deg": 0.303
+    },
+    {
+      "Tb": 1.0,
+      "phase": "pre",
+      "maxD_deg": 0.308
+    },
+    {
+      "Tb": 2.0,
+      "phase": "entry",
+      "maxD_deg": 0.29
+    },
+    {
+      "Tb": 2.0,
+      "phase": "exit",
+      "maxD_deg": 0.318
+    },
+    {
+      "Tb": 2.0,
+      "phase": "mid",
+      "maxD_deg": 0.303
+    },
+    {
+      "Tb": 2.0,
+      "phase": "pre",
+      "maxD_deg": 0.304
+    },
+    {
+      "Tb": 4.0,
+      "phase": "entry",
+      "maxD_deg": 0.29
+    },
+    {
+      "Tb": 4.0,
+      "phase": "exit",
+      "maxD_deg": 0.318
+    },
+    {
+      "Tb": 4.0,
+      "phase": "mid",
+      "maxD_deg": 0.303
+    },
+    {
+      "Tb": 4.0,
+      "phase": "pre",
+      "maxD_deg": 0.31
+    }
+  ]
+}

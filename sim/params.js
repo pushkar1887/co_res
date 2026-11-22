@@ -34,6 +34,7 @@ export const DEFAULTS = Object.freeze({
   monWin: 2.0,         // window T_w [s]
   monThr: 0.6 * D2R,   // threshold h [rad]
   monGate: 0.3,        // gate g: time since the first missed report [s]
+  monRefTau: 10.0,     // v2 offset low-pass [s]: quantization averages to ~0.03 deg/s; warm-up lag < 0.02 deg/s
   // speed policies (PLAN §5.4)
   alpha: 0.3,          // speed fraction while slowed
   // scoring (PLAN §7, §8)
