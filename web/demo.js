@@ -141,8 +141,8 @@ function drawRacks(ctx, px, labels) {
     if (lab && labels) labels.push([(x0 + x1) / 2, (y0 + y1) / 2, lab]);
   }
 }
-function robotShape(ctx, x, y, th, color, ghost, px) {
-  ctx.save(); ctx.translate(x, y); ctx.rotate(th);
+function robotShape(ctx, x, y, th, color, ghost, px, G = 1) {      // G < 1 draws a scaled-down glyph (position stays exact)
+  ctx.save(); ctx.translate(x, y); ctx.rotate(th); ctx.scale(G, G); px /= G;
   if (ghost) {
     ctx.setLineDash([6 * px, 4 * px]); ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 1.6 * px; rr(ctx, -0.13, -0.11, 0.26, 0.22, 0.045); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(34,211,238,0.10)'; ctx.fill();
@@ -184,7 +184,9 @@ function gauge(ctx, x, y, w, label, valTxt, frac, color, marks = [], zone = null
 function drawView(cv, arm) {
   const { ctx, w, h, dpr } = prep(cv), S = st.sims[arm], s = sample(S.run, st.T), T = st.T;
   const C = w < 560;                                   // compact overlay when five views share the screen
-  const k = w / (C ? 1.15 : 1.45), px = 1 / k;         // compact: zoom back to ~430 px/m so mm-level drift stays visible
+  // Zoomed on the lane: ~0.62 m across in compact views (~800 px/m at 496 px), so the ±30 mm lane is ~48 px wide.
+  // The robot glyph is drawn at G of its real 0.26 m size, or it would cover the lane; positions/errors stay true scale.
+  const k = w / (C ? 0.62 : 0.9), px = 1 / k, G = C ? 0.32 : 0.45;
   // Camera follows the robot's REFERENCE point on the route, not the robot: the yellow centreline sits at the same
   // place in every view, so lateral error shows up as the robot being displaced from it (comparable across all five).
   const ref = route.point(Math.max(0, Math.min(route.total, s.s)));
@@ -219,10 +221,10 @@ function drawView(cv, arm) {
   if (arm !== 'hold') {
     ctx.strokeStyle = 'rgba(34,211,238,0.55)'; ctx.lineWidth = 1.2 * px; ctx.setLineDash([3 * px, 3 * px]); ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.xe, s.ye); ctx.stroke(); ctx.setLineDash([]);
     if (arm !== 'dr') ellipse(ctx, s.xe, s.ye, s.P00, s.P01, s.P11, 2, px);
-    robotShape(ctx, s.xe, s.ye, s.the, '#22d3ee', true, px);
+    robotShape(ctx, s.xe, s.ye, s.the, '#22d3ee', true, px, G);
   }
-  if (s.alarm) { const r = 0.2 + 0.025 * Math.sin(performance.now() / 120); ctx.strokeStyle = arm === 'SA' ? 'rgba(59,130,246,0.9)' : 'rgba(239,68,68,0.55)'; ctx.lineWidth = 2.5 * px; ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 2 * Math.PI); ctx.stroke(); }
-  robotShape(ctx, s.x, s.y, s.th, ARMS[arm].color, false, px);
+  if (s.alarm) { const r = (0.2 + 0.025 * Math.sin(performance.now() / 120)) * G * 1.3; ctx.strokeStyle = arm === 'SA' ? 'rgba(59,130,246,0.9)' : 'rgba(239,68,68,0.55)'; ctx.lineWidth = 2.5 * px; ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 2 * Math.PI); ctx.stroke(); }
+  robotShape(ctx, s.x, s.y, s.th, ARMS[arm].color, false, px, G);
   // lane edges + centreline redrawn OVER the robot, and the cross-track error as a bracket from centreline to robot centre
   ctx.lineWidth = 1.3 * px; ctx.setLineDash([5 * px, 4 * px]); ctx.strokeStyle = 'rgba(134,239,172,0.95)';
   for (const d of [CORR, -CORR]) { offsetLine(ctx, s.s - 0.4, s.s + 0.4, d); ctx.stroke(); }
@@ -232,7 +234,7 @@ function drawView(cv, arm) {
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 3.5 * px, 0, 2 * Math.PI); ctx.fill(); ctx.strokeStyle = ec; ctx.lineWidth = 1.5 * px; ctx.stroke();
   // ---- screen-space overlays
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  if (ePk > 0.015) { const X = w / 2 + (L.x[iPk] - cx) * k, Y = h / 2 - (L.y[iPk] - cy) * k;
+  if (ePk > 0.015 && s.i - iPk > 10) { const X = w / 2 + (L.x[iPk] - cx) * k, Y = h / 2 - (L.y[iPk] - cy) * k;
     if (X > 0 && X < w && Y > 0 && Y < h) pill(ctx, X + 8, Y + 4, `peak ${(ePk * 1e3).toFixed(0)} mm`, ePk > CORR ? '#7f1d1d' : '#78350f', '#fff', 'left', C ? 9.5 : 10.5); }
   { const X = w / 2 + (s.x - cx) * k, Y = h / 2 - (s.y - cy) * k;    // error label next to the robot centre
     pill(ctx, X + 8, Y - (C ? 30 : 34), `${s.e >= 0 ? '+' : '−'}${(ae * 1e3).toFixed(1)} mm`, 'rgba(7,11,20,0.82)', ec, 'left', C ? 10 : 11); }
@@ -264,6 +266,46 @@ function drawView(cv, arm) {
   gauge(ctx, gx(1), gy, gw, C ? 'lane' : 'lane error', `${(s.e * 1e3).toFixed(1)} mm`, s.e / 0.12, out ? '#ef4444' : '#34d399', [[0.25, '#94a3b8'], [0.75, '#94a3b8']], [[0, 0.25], [0.75, 1]], true);
   gauge(ctx, gx(2), gy, gw, C ? 'gyro ≠ enc' : 'gyro vs encoder', `${(Math.abs(s.D) / D2R).toFixed(2)}°`, Math.abs(s.D) / D2R / 2.4, s.alarm ? '#3b82f6' : '#a78bfa', [[H_DEG / 2.4, '#ef4444']]);
   if (!C) { ctx.font = '500 11px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab'; ctx.fillText('trail = true path (green · amber > 15 mm · red out)   ghost = EKF estimate + 2σ   band = ±30 mm lane', 28, h - 26); }
+}
+
+// ---------------------------------------------------------------- straightened lane (overview)
+// The ±30 mm lane is ~1 px on the map, so the overview also shows the route "unrolled": x = distance along the
+// route, y = signed lateral error in mm (true values, only the axes differ). Every robot's track is drawn on it.
+function drawLane() {
+  const cv = $('lane'); if (!cv) return; const { ctx, w, h } = prep(cv);
+  const PL = 34, PR = 10, PT = 14, PB = 16, i0 = Math.round(st.t0 * 50);
+  let s0 = Infinity, s1 = -Infinity, m = 45;
+  for (const a of ORDER) { const L = st.sims[a].run.log, i1 = Math.min(L.s.length - 1, Math.round(st.t1 * 50)); s0 = Math.min(s0, L.s[i0]); s1 = Math.max(s1, L.s[i1]);
+    for (let i = i0; i <= i1; i++) m = Math.max(m, Math.abs(L.e[i]) * 1e3 * 1.1); }
+  m = Math.ceil(m / 15) * 15;
+  const X = (v) => PL + (v - s0) / (s1 - s0) * (w - PL - PR), Y = (mm) => PT + (1 - (Math.max(-m, Math.min(m, mm)) + m) / (2 * m)) * (h - PT - PB);
+  ctx.fillStyle = '#0a1122'; ctx.fillRect(PL, PT, w - PL - PR, h - PT - PB);
+  ctx.fillStyle = 'rgba(239,68,68,0.07)'; ctx.fillRect(PL, PT, w - PL - PR, Y(30) - PT); ctx.fillRect(PL, Y(-30), w - PL - PR, h - PB - Y(-30));     // out of lane
+  const tA = DEFAULTS.L1, tB = DEFAULTS.L1 + Math.PI / 2 * P_B.R;                                                                                     // the turn
+  ctx.fillStyle = 'rgba(148,163,184,0.08)'; ctx.fillRect(X(tA), PT, X(tB) - X(tA), h - PT - PB);
+  const LS = st.sims.SA.run.log, bA = LS.s[Math.round(st.W.tOn * 50)], bB = LS.s[Math.min(LS.s.length - 1, Math.round(st.W.tRet * 50))];
+  ctx.fillStyle = 'rgba(239,68,68,0.14)'; ctx.fillRect(X(bA), PT, X(bB) - X(bA), h - PT - PB);                                                        // blind (SA)
+  ctx.fillStyle = 'rgba(34,197,94,0.20)'; ctx.fillRect(PL, Y(30), w - PL - PR, Y(-30) - Y(30));                                                       // lane
+  ctx.strokeStyle = 'rgba(34,197,94,0.85)'; ctx.lineWidth = 1; for (const v of [30, -30]) { ctx.beginPath(); ctx.moveTo(PL, Y(v)); ctx.lineTo(w - PR, Y(v)); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(250,204,21,0.8)'; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(PL, Y(0)); ctx.lineTo(w - PR, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.font = '600 9px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab';
+  for (const v of [m, 30, 0, -30, -m]) { const t = v > 0 ? `+${v}` : `${v}`; ctx.fillText(t, PL - 4 - ctx.measureText(t).width, Y(v) + 3); }
+  ctx.fillText('turn', X(tA) + 3, h - PB - 4); ctx.fillStyle = '#f87171'; ctx.fillText('camera blind (SA)', X(bA) + 3, PT - 4);
+  ctx.fillStyle = '#5b6b88'; for (let v = Math.ceil(s0); v <= s1; v++) ctx.fillText(`${v} m`, X(v) - 8, h - 4);
+  ctx.save(); ctx.beginPath(); ctx.rect(PL, PT, w - PL - PR, h - PT - PB); ctx.clip();
+  const pos = [];
+  for (const a of [...ORDER.filter((q) => q !== 'SA'), 'SA']) {
+    const L = st.sims[a].run.log, si = sample(st.sims[a].run, st.T); ctx.strokeStyle = ARMS[a].color; ctx.lineWidth = a === 'SA' || a === 'N' || a === 'dr' ? 2 : 1.4;
+    ctx.beginPath(); for (let i = i0; i <= si.i; i++) { const p = [X(L.s[i]), Y(L.e[i] * 1e3)]; i === i0 ? ctx.moveTo(...p) : ctx.lineTo(...p); } ctx.stroke();
+    pos.push([a, X(si.s), Y(si.e * 1e3)]);
+  }
+  for (const [a, x, y] of pos) { ctx.fillStyle = ARMS[a].color; ctx.beginPath(); ctx.arc(x, y, 4, 0, 2 * Math.PI); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke(); }
+  ctx.restore();
+  ctx.font = '700 9.5px Inter, system-ui, sans-serif';
+  const groups = [];                                   // robots within 10 px share one label ("SB·SA·SO")
+  for (const p of [...pos].sort((u, v) => u[2] - v[2])) { const g = groups.find((q) => Math.abs(q.x - p[1]) < 30 && Math.abs(q.y - p[2]) < 10); g ? g.n.push(p[0]) : groups.push({ x: p[1], y: p[2], n: [p[0]] }); }
+  for (const g of groups) { const t = g.n.map((a) => ARMS[a].name).join('·'); ctx.fillStyle = g.n.length > 1 ? '#cbd5e1' : ARMS[g.n[0]].color;
+    ctx.fillText(t, Math.min(g.x + 7, w - PR - ctx.measureText(t).width), Math.max(PT + 9, Math.min(h - PB - 2, g.y - 6))); }
 }
 
 // ---------------------------------------------------------------- overview map
@@ -380,7 +422,7 @@ function paintTimeline(c, w, h) {
 // ---------------------------------------------------------------- main loop
 function draw() {
   for (const a of ORDER) drawView($(`view_${a}`), a);
-  drawMini(); drawRace(); drawTimeline();
+  drawMini(); drawLane(); drawRace(); drawTimeline();
   const bo = inBlackout(st.T);
   $('clock').innerHTML = `${st.T.toFixed(2)} s<small>${bo ? `blackout ${(st.T - st.W.tOn).toFixed(1)} / ${st.Tb} s` : st.T < st.W.tOn ? `blackout in ${(st.W.tOn - st.T).toFixed(1)} s` : 'camera back'}</small>`;
   const act = st.events.reduce((k, e, i) => (e.t <= st.T + 1e-6 ? i : k), -1);

@@ -32,7 +32,8 @@
     <div class="legend-line">Each view follows one robot. Trail = true path (green, amber &gt; 15 mm, red = out of lane) · cyan ghost = EKF estimate + 2σ ellipse · green band = ±30 mm lane · red band = where the camera is blind.</div>
   </div>
   <aside class="side">
-    <div class="card"><h3>Warehouse overview · all five robots</h3><canvas id="mini" style="height:300px"></canvas></div>
+    <div class="card"><h3>Warehouse overview · all five robots</h3><canvas id="mini" style="height:250px"></canvas>
+      <h3 style="margin-top:12px">Lane, straightened · lateral error along the route (mm)</h3><canvas id="lane" style="height:170px"></canvas></div>
     <div class="card"><h3>Race along the route</h3><div id="race"></div></div>
     <div class="card"><h3>Outcome of this run</h3><div id="verdict"></div><table class="scores" id="scores"></table></div>
     <div class="card events"><h3>Story · click to jump</h3><ol id="events"></ol></div>

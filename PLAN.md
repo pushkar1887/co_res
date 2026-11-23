@@ -1119,3 +1119,18 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - All seven presets play to the end with no console errors.
 - **Meaning:** the demo now shows a 3× separation with numbers from a pre-registered grid cell. **The viva must say which condition is on screen:** +1.5°/s is Part C2, while the headline P1–P4 numbers come from B0 at +1°/s. **No visual exaggeration was used:** every distance is drawn at true scale.
 
+**2026-11-23 · Claude · demo: lane-level zoom, smaller robot glyph, straightened ±30 mm lane in the overview (display only, no new runs)**
+- **What:** Pushkar asked to zoom further onto the lane, make N and DR look worse, show the 30 mm lane in the overview, and shrink the robot so the lane stays visible.
+  - **Follow-cams:**
+    - Compact views now span 0.62 m, about 800 px/m at 496 px (was 1.15 m, about 430 px/m). The ±30 mm lane is about 48 px wide; N at −67 mm is about 54 px off the centreline and DR at −99 mm about 79 px.
+    - The robot glyph is drawn at **32%** of its real 0.26 m size (`robotShape(..., G)`), or it would cover the lane completely; the ghost and the alarm ring scale with it.
+    - **Positions, errors, trails and the 2σ ellipse stay at true scale.** Only the glyph is schematic.
+    - The peak pill now appears only once the robot has moved past its peak, so it no longer collides with the live label.
+  - **Overview:**
+    - At about 40 px/m the ±30 mm lane is about 1 px on the map, so drawing it there is impossible.
+    - New panel **"Lane, straightened"** (`drawLane()`): x is distance along the route, y is the signed lateral error in mm. The ±30 mm lane is drawn as a green band, with out-of-lane zones, the turn and the camera-blind stretch shaded.
+    - Each robot's track runs to its current dot. Robots whose labels would overlap share one tag ("SB·SA·SO").
+    - The map shrank to 250 px to make room.
+- **Result:** at t = 11.5 s (gyro +1.5°/s), the strip shows N and DR diving to −74 and −114 mm beyond the band while SB, SA and SO stay inside it. All seven presets play to the end with no console errors.
+- **Meaning:** for the viva, the straightened lane is the single clearest picture of P1 and P3. **If asked, say that the robot icon is drawn small for visibility and all distances are true.**
+
