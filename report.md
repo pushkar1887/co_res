@@ -4,11 +4,11 @@ Planning file for the Word report. The report itself is `report/BTech_Report.doc
 
 ## 1. Title
 
-**Consistency-Gated Speed Control for Warehouse Robots During Camera Blackouts: Analysis, Simulation and Embedded Validation**
+**Selective Slowdown Under Camera Blackouts: Gating Speed on Gyro–Encoder Consistency**
 
-- Cover (all caps): CONSISTENCY-GATED SPEED CONTROL FOR WAREHOUSE ROBOTS DURING CAMERA BLACKOUTS
-- Why this title: it names the method (consistency-gated speed control), the setting (warehouse robots, camera blackouts) and the three kinds of evidence (analysis, simulation, embedded port).
-- Rejected: "Slow Down Only When Sensors Disagree" is a paper hook, too informal for a report cover. "Fault-Aware Navigation…" overclaims: we do not do navigation.
+- Cover (all caps, set by the build): SELECTIVE SLOWDOWN UNDER CAMERA BLACKOUTS: GATING SPEED ON GYRO–ENCODER CONSISTENCY
+- Running header: Selective Slowdown Under Camera Blackouts
+- Why: the first half names the action and the setting; the second names the mechanism, which separates it from Gyrodometry (1996) at a glance.
 
 ## 2. Framing (one paragraph the whole report serves)
 

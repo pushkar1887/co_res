@@ -11,11 +11,13 @@ import os, re, shutil, sys, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(r'~\Downloads\Btech Report Template 1.docx')
-OUT_DOCX = os.path.join(ROOT, 'report', 'BTech_Report.docx')
-OUT_PDF = os.path.join(ROOT, 'report', 'BTech_Report.pdf')
+OUT_DOCX = os.path.join(ROOT, 'report', 'BTech_Report_v2.docx')
+OUT_PDF = os.path.join(ROOT, 'report', 'BTech_Report_v2.pdf')
 FIG = lambda name: os.path.join(ROOT, 'figures', name)
 RFIG = lambda name: os.path.join(ROOT, 'report', name)
 NAVY, SLATE = '1B365D', '334E68'
+TITLE = 'Selective Slowdown Under Camera Blackouts: Gating Speed on Gyro–Encoder Consistency'
+SHORT_TITLE = 'Selective Slowdown Under Camera Blackouts'
 
 # --------------------------------------------------------------------------- XML helpers
 esc = lambda s: s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -419,6 +421,7 @@ def build():
     zin = zipfile.ZipFile(TEMPLATE)
     doc = zin.read('word/document.xml').decode('utf8')
     styles = zin.read('word/styles.xml').decode('utf8')
+    doc = doc.replace('[ENTER YOUR PROJECT TITLE IN ALL CAPS]', esc(TITLE.upper())).replace('[Project Title]', esc(TITLE))
     head, rest = doc.split('<w:body>', 1)
     body, tail = rest.rsplit('</w:body>', 1)
     spans = [m.span() for m in re.finditer(r'<w:p[ >].*?</w:p>|<w:tbl>.*?</w:tbl>', body, re.S)]
@@ -486,7 +489,7 @@ def build():
         if item.filename == 'word/document.xml':
             data = (head + '<w:body>' + new_body + '</w:body>' + tail).encode('utf8')
         elif item.filename == 'word/header1.xml':
-            data = data.decode('utf8').replace('>[PROJECT TITLE IN <', '>Consistency-Gated Speed Control<').replace('>SHORT]  |<', '>' + chr(160) * 2 + '|' + chr(160) * 2 + '<').encode('utf8')
+            data = data.decode('utf8').replace('>[PROJECT TITLE IN <', '>' + SHORT_TITLE + '<').replace('>SHORT]  |<', '>' + chr(160) * 2 + '|' + chr(160) * 2 + '<').encode('utf8')
         elif item.filename == 'word/styles.xml':
             data = styles.encode('utf8')
         zout.writestr(item, data)
