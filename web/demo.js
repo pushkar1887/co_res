@@ -181,10 +181,15 @@ function gauge(ctx, x, y, w, label, valTxt, frac, color, marks = [], zone = null
 
 // ---------------------------------------------------------------- follow-camera view
 function drawView(cv, arm) {
-  const { ctx, w, h, dpr } = prep(cv), S = st.sims[arm], s = sample(S.run, st.T), k = w / 1.45, px = 1 / k, T = st.T;
+  const { ctx, w, h, dpr } = prep(cv), S = st.sims[arm], s = sample(S.run, st.T), T = st.T;
+  const C = w < 560;                                   // compact overlay when five views share the screen
+  const k = w / (C ? 1.15 : 1.45), px = 1 / k;         // compact: zoom back to ~430 px/m so mm-level drift stays visible
+  // Camera follows the robot's REFERENCE point on the route, not the robot: the yellow centreline sits at the same
+  // place in every view, so lateral error shows up as the robot being displaced from it (comparable across all five).
+  const ref = route.point(Math.max(0, Math.min(route.total, s.s)));
   const bg = ctx.createRadialGradient(w / 2, h / 2, 50, w / 2, h / 2, Math.max(w, h) * 0.75); bg.addColorStop(0, '#0e1730'); bg.addColorStop(1, '#070b14');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-  const cx = s.x, cy = s.y + 0.06;
+  const cx = ref[0], cy = ref[1] + (C ? 0.08 * h / k : 0.06);
   ctx.setTransform(dpr * k, 0, 0, -dpr * k, dpr * (w / 2 - cx * k), dpr * (h / 2 + cy * k));
   const x0 = cx - w / 2 / k, x1 = cx + w / 2 / k, y0 = cy - h / 2 / k, y1 = cy + h / 2 / k;
   ctx.lineWidth = px;                                                   // floor grid
@@ -213,9 +218,17 @@ function drawView(cv, arm) {
   }
   if (s.alarm) { const r = 0.2 + 0.025 * Math.sin(performance.now() / 120); ctx.strokeStyle = arm === 'SA' ? 'rgba(59,130,246,0.9)' : 'rgba(239,68,68,0.55)'; ctx.lineWidth = 2.5 * px; ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 2 * Math.PI); ctx.stroke(); }
   robotShape(ctx, s.x, s.y, s.th, ARMS[arm].color, false, px);
+  // lane edges + centreline redrawn OVER the robot, and the cross-track error as a bracket from centreline to robot centre
+  ctx.lineWidth = 1.3 * px; ctx.setLineDash([5 * px, 4 * px]); ctx.strokeStyle = 'rgba(134,239,172,0.95)';
+  for (const d of [CORR, -CORR]) { offsetLine(ctx, s.s - 0.4, s.s + 0.4, d); ctx.stroke(); }
+  ctx.setLineDash([]); ctx.strokeStyle = 'rgba(250,204,21,0.9)'; offsetLine(ctx, s.s - 0.4, s.s + 0.4, 0); ctx.stroke();
+  const ae = Math.abs(s.e), ec = ae > CORR ? '#ef4444' : ae > 0.015 ? '#f59e0b' : '#34d399';
+  ctx.strokeStyle = ec; ctx.lineWidth = 3 * px; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ref[0], ref[1]); ctx.lineTo(s.x, s.y); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 3.5 * px, 0, 2 * Math.PI); ctx.fill(); ctx.strokeStyle = ec; ctx.lineWidth = 1.5 * px; ctx.stroke();
   // ---- screen-space overlays
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const C = w < 560;                                   // compact overlay when five views share the screen
+  { const X = w / 2 + (s.x - cx) * k, Y = h / 2 - (s.y - cy) * k;    // error label next to the robot centre
+    pill(ctx, X + 8, Y - (C ? 30 : 34), `${s.e >= 0 ? '+' : '−'}${(ae * 1e3).toFixed(1)} mm`, 'rgba(7,11,20,0.82)', ec, 'left', C ? 10 : 11); }
   ctx.font = `700 ${C ? 9 : 10}px Inter, system-ui, sans-serif`; ctx.fillStyle = 'rgba(148,163,184,0.55)';
   for (const [lx, ly, lab] of labels) { const X = w / 2 + (lx - cx) * k, Y = h / 2 - (ly - cy) * k; if (X > -50 && X < w + 50 && Y > -20 && Y < h + 20) ctx.fillText(lab + (C ? '' : ' · blocks the camera'), X - (C ? 18 : 52), Y); }
   const out = Math.abs(s.e) > CORR;
@@ -269,6 +282,16 @@ function drawMini() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.font = '700 10px Inter, system-ui, sans-serif';
   for (const [a, s] of pos) { const X = ox + (s.x - xmin) * k, Y = h - (s.y - ymin) * k; ctx.fillStyle = ARMS[a].color; ctx.fillText(ARMS[a].name, X + 9, Y - 6); }
   const CX = ox + (CAMERA_POS[0] - xmin) * k, CY = h - (CAMERA_POS[1] - ymin) * k; ctx.fillStyle = '#9fb0cc'; ctx.fillText('overhead camera', CX - 40, CY - 12);
+  // lateral error is mm-scale and invisible at map scale (~40 px/m), so the map carries a live readout of it
+  const bx = ox + 2, by0 = 4, rh = 15; ctx.fillStyle = 'rgba(7,11,20,0.85)'; rr(ctx, bx, by0, 128, 20 + rh * pos.length, 8); ctx.fill();
+  ctx.font = '600 9.5px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab'; ctx.fillText('LANE ERROR NOW (±30 mm)', bx + 8, by0 + 13);
+  pos.forEach(([a, s], j) => {
+    const y = by0 + 28 + j * rh, ae = Math.abs(s.e), out = ae > CORR;
+    ctx.fillStyle = ARMS[a].color; ctx.beginPath(); ctx.arc(bx + 12, y - 3.5, 4, 0, 2 * Math.PI); ctx.fill();
+    ctx.font = '700 10.5px Inter, system-ui, sans-serif'; ctx.fillText(ARMS[a].name, bx + 21, y);
+    ctx.font = '600 10.5px "JetBrains Mono", monospace'; ctx.fillStyle = out ? '#f87171' : ae > 0.015 ? '#fbbf24' : '#86efac';
+    ctx.fillText(`${(s.e * 1e3).toFixed(1).padStart(6)} mm${out ? ' OUT' : ''}`, bx + 44, y);
+  });
 }
 
 function drawRace() {
@@ -374,6 +397,7 @@ function advance(dt) {
     if (st.T >= st.t1) { st.playing = false; setPlayIcon(); }
   }
 }
+window.__probe = () => Object.fromEntries(ORDER.map((a) => { const s = sample(st.sims[a].run, st.T); return [a, { T: +st.T.toFixed(2), x: +s.x.toFixed(4), y: +s.y.toFixed(4), e_mm: +(s.e * 1e3).toFixed(1), xe: +s.xe.toFixed(4), ye: +s.ye.toFixed(4), u: +s.u.toFixed(3) }]; }));   // test hook (read-only)
 window.__advance = (sec, step = 0.02) => { for (let t = 0; t < sec && st.playing; t += step) advance(step); draw(); return { T: st.T, playing: st.playing }; };
 function setPlayIcon() { $('playIcon').innerHTML = st.playing ? '<path d="M6 4h4v16H6zm8 0h4v16h-4z"/>' : '<path d="M7 4v16l13-8z"/>'; }
 function togglePlay() {

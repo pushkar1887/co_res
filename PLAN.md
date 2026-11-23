@@ -1080,3 +1080,20 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - The saved Wokwi project contains all six files (line counts match the repo). It compiles, boots and starts pass 1 with sane CSV rows (t = 0.1–0.3 s, camera fresh). **Not re-observed:** the `V8 PARITY: PASS` line. The browser pane ran Wokwi at 1% of real time this session, and the files are byte-identical to the ones that passed V8 (§20, M4 entry).
 - **Meaning:** the viva shows the full policy comparison in one frame. The examiners can see N and DR leave the lane while SA slows only after the alarm and SB slows from the start. The ESP32 parity run is one click away.
 
+**2026-11-23 · Claude · fix: five-view demo hid N/DR lateral drift (rendering regression of the previous entry; no new runs)**
+- **What:** Pushkar reported that after the five-view change, "everyone looks the same": N and DR no longer looked off-track.
+  - **Diagnosis:** the old (824b9d3) and new demos were rendered side by side with a read-only probe (`window.__probe()`). The state is identical. At t = 10.52 s (gyro +1°/s, 4 s from turn entry, seed 1), both give N −33.9 mm, DR −65.7 mm, SA −8.4 mm, SB −8.5 mm and SO −8.7 mm. **The simulation and metrics were not affected.** The regression was purely visual, with three causes:
+    1. **Zoom tied to view width.** `k = w/1.45` dropped from 441 to about 300 px/m when the views shrank from 639 to 416–496 px, so N's 34 mm offset fell to about 10 px under a 0.26 m (about 80 px) robot glyph.
+    2. **Each view centred on its own robot.** All five robots sat dead centre and only the lane moved, so side by side they looked identical.
+    3. **Overview map scale.** At about 40 px/m, 66 mm is under 3 px, so the map can never show lateral error.
+  - **Fix in `web/demo.js`:**
+    - Compact views use `k = w/1.15` (about 430 px/m at 496 px, the same as the old two-view scale).
+    - **Every view now follows the robot's reference point on the route** (`route.point(s)`), so the yellow centreline is at the same place in all five views and lateral error shows as displacement from it.
+    - The ±30 mm lane edges and the centreline are redrawn over the robot. A coloured bracket runs from the centreline to the robot centre (green < 15 mm, amber, red > 30 mm), with a signed mm label.
+    - The overview map has a live "lane error now" readout for all five, marking OUT.
+- **Result:**
+  - At t = 10.52 s, N and DR sit visibly outside the green dashed lane edges and SA sits on the centreline.
+  - In N and DR, the cyan EKF ghost stays on the centreline while the true robot drifts, which is the "estimate is confidently wrong" point made visible.
+  - All six presets play to the end with no new console errors.
+- **Meaning:** the five-up layout now shows the comparison it exists for. This was a regression I introduced in the previous entry, and I should have checked it against the old rendering before pushing.
+
