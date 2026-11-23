@@ -192,9 +192,12 @@ function drawView(cv, arm) {
   const ref = route.point(Math.max(0, Math.min(route.total, s.s)));
   const bg = ctx.createRadialGradient(w / 2, h / 2, 50, w / 2, h / 2, Math.max(w, h) * 0.75); bg.addColorStop(0, '#0e1730'); bg.addColorStop(1, '#070b14');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-  const cx = ref[0], cy = ref[1] + (C ? 0.08 * h / k : 0.06);
-  ctx.setTransform(dpr * k, 0, 0, -dpr * k, dpr * (w / 2 - cx * k), dpr * (h / 2 + cy * k));
-  const x0 = cx - w / 2 / k, x1 = cx + w / 2 / k, y0 = cy - h / 2 / k, y1 = cy + h / 2 / k;
+  // Layout: scene on top (0..SH), a separate gauge strip below (SH..h). Nothing is drawn over the scene's robot.
+  const F = C ? 44 : 48, SH = h - F, Yc = SH / 2 + 8;   // Yc: screen row of the reference point (robot sits around it)
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, SH); ctx.clip();
+  const cx = ref[0], cy = ref[1];
+  ctx.setTransform(dpr * k, 0, 0, -dpr * k, dpr * (w / 2 - cx * k), dpr * (Yc + cy * k));
+  const x0 = cx - w / 2 / k, x1 = cx + w / 2 / k, y0 = cy - (SH - Yc) / k, y1 = cy + Yc / k;
   ctx.lineWidth = px;                                                   // floor grid
   for (let g = Math.floor(x0 / 0.25) * 0.25; g <= x1; g += 0.25) { ctx.strokeStyle = Math.abs(g - Math.round(g)) < 1e-6 ? 'rgba(148,163,184,0.13)' : 'rgba(148,163,184,0.05)'; ctx.beginPath(); ctx.moveTo(g, y0); ctx.lineTo(g, y1); ctx.stroke(); }
   for (let g = Math.floor(y0 / 0.25) * 0.25; g <= y1; g += 0.25) { ctx.strokeStyle = Math.abs(g - Math.round(g)) < 1e-6 ? 'rgba(148,163,184,0.13)' : 'rgba(148,163,184,0.05)'; ctx.beginPath(); ctx.moveTo(x0, g); ctx.lineTo(x1, g); ctx.stroke(); }
@@ -234,14 +237,14 @@ function drawView(cv, arm) {
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 3.5 * px, 0, 2 * Math.PI); ctx.fill(); ctx.strokeStyle = ec; ctx.lineWidth = 1.5 * px; ctx.stroke();
   // ---- screen-space overlays
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  if (ePk > 0.015 && s.i - iPk > 10) { const X = w / 2 + (L.x[iPk] - cx) * k, Y = h / 2 - (L.y[iPk] - cy) * k;
-    if (X > 0 && X < w && Y > 0 && Y < h) pill(ctx, X + 8, Y + 4, `peak ${(ePk * 1e3).toFixed(0)} mm`, ePk > CORR ? '#7f1d1d' : '#78350f', '#fff', 'left', C ? 9.5 : 10.5); }
-  { const X = w / 2 + (s.x - cx) * k, Y = h / 2 - (s.y - cy) * k;    // error label next to the robot centre
-    pill(ctx, X + 8, Y - (C ? 30 : 34), `${s.e >= 0 ? '+' : '−'}${(ae * 1e3).toFixed(1)} mm`, 'rgba(7,11,20,0.82)', ec, 'left', C ? 10 : 11); }
+  if (ePk > 0.015 && s.i - iPk > 10) { const X = w / 2 + (L.x[iPk] - cx) * k, Y = Yc - (L.y[iPk] - cy) * k;
+    if (X > 0 && X < w && Y > 0 && Y < SH - 20) pill(ctx, X + 8, Y + 4, `peak ${(ePk * 1e3).toFixed(0)} mm`, ePk > CORR ? '#7f1d1d' : '#78350f', '#fff', 'left', C ? 9.5 : 10.5); }
+  { const X = w / 2 + (s.x - cx) * k, Y = Yc - (s.y - cy) * k;       // error label next to the robot centre
+    const lft = w < 420;                                // narrow view: the right column of status pills would cover it
+    pill(ctx, lft ? X - 8 : X + 8, Y - (C ? 30 : 34), `${s.e >= 0 ? '+' : '−'}${(ae * 1e3).toFixed(1)} mm`, 'rgba(7,11,20,0.82)', ec, lft ? 'right' : 'left', C ? 10 : 11); }
   ctx.font = `700 ${C ? 9 : 10}px Inter, system-ui, sans-serif`; ctx.fillStyle = 'rgba(148,163,184,0.55)';
-  for (const [lx, ly, lab] of labels) { const X = w / 2 + (lx - cx) * k, Y = h / 2 - (ly - cy) * k; if (X > -50 && X < w + 50 && Y > -20 && Y < h + 20) ctx.fillText(lab + (C ? '' : ' · blocks the camera'), X - (C ? 18 : 52), Y); }
+  for (const [lx, ly, lab] of labels) { const X = w / 2 + (lx - cx) * k, Y = Yc - (ly - cy) * k; if (X > -50 && X < w + 50 && Y > -20 && Y < SH + 20) ctx.fillText(lab + (C ? '' : ' · blocks the camera'), X - (C ? 18 : 52), Y); }
   const out = Math.abs(s.e) > CORR;
-  if (out) { ctx.strokeStyle = `rgba(239,68,68,${0.55 + 0.35 * Math.sin(performance.now() / 140)})`; ctx.lineWidth = C ? 4 : 6; ctx.strokeRect(2, 2, w - 4, h - 4); }
   // header
   const ttl = C ? ARMS[arm].short : ARMS[arm].title;
   ctx.font = `500 ${C ? 10.5 : 11.5}px Inter, system-ui, sans-serif`; const hw = ctx.measureText(ttl).width + (C ? 44 : 52);
@@ -254,18 +257,18 @@ function drawView(cv, arm) {
   const pre = PRESETS.find((p) => p.id === st.preset);
   if (pre.chip && (faultActive(T) || pre.fault.kind === 'scale' || pre.fault.kind === 'diff')) { pill(ctx, w - 10, yy, pre.chip, '#92400e', '#fff', 'right', fs); yy += ph; }
   if (out) pill(ctx, w - 10, yy, C ? `OUT · ${(Math.abs(s.e) * 1e3).toFixed(0)} mm` : `OUT OF LANE · ${(Math.abs(s.e) * 1e3).toFixed(0)} mm`, '#ef4444', '#fff', 'right', fs);
-  const slowed = s.vc > 0 && s.vc < 0.9 * P_B.v, by = h - (C ? 98 : 132);
+  const slowed = s.vc > 0 && s.vc < 0.9 * P_B.v, by = SH - fs * 2.1 - 8;   // banner: bottom of the scene, above the gauge strip
   if (s.alarm && arm === 'SA') pill(ctx, w / 2, by, C ? 'DISAGREE → SLOW TO 0.15 m/s' : 'SENSORS DISAGREE → SLOWING TO 0.15 m/s', '#1d4ed8', '#fff', 'center', fs);
   else if (slowed) pill(ctx, w / 2, by, arm === 'SB' ? (C ? 'BLANKET RULE → SLOW' : 'BLANKET RULE: BLACKOUT → SLOW TO 0.15 m/s') : arm === 'SO' ? (C ? 'ORACLE → SLOW' : 'ORACLE: FAULT KNOWN → SLOW') : 'SLOWED', '#334155', '#fff', 'center', fs);
   else if (s.alarm) pill(ctx, w / 2, by, C ? `DISAGREE · ${ARMS[arm].name} IGNORES IT` : `SENSORS DISAGREE · ${ARMS[arm].name} IGNORES IT, FULL SPEED`, '#7f1d1d', '#fff', 'center', fs);
-  // gauges (+ legend line when there is room)
-  const gh = C ? 58 : 86, pad = C ? 10 : 16;
-  ctx.fillStyle = 'rgba(7,11,20,0.78)'; rr(ctx, 10, h - gh - 10, w - 20, gh, 10); ctx.fill();
-  const gw = (w - 20 - 4 * pad) / 3, gy = h - gh + 12, gx = (j) => 10 + pad + j * (gw + pad);
+  ctx.restore();                                      // end of scene clip
+  // gauge strip: its own area below the scene (legend lives under the grid in demo.html)
+  ctx.fillStyle = '#0a0f1c'; ctx.fillRect(0, SH, w, F); ctx.fillStyle = '#1e2a44'; ctx.fillRect(0, SH, w, 1);
+  const pad = C ? 10 : 16, gw = (w - 4 * pad) / 3, gy = SH + Math.round((F - 14) / 2) + 6, gx = (j) => pad + j * (gw + pad);
   gauge(ctx, gx(0), gy, gw, 'speed', `${s.u.toFixed(2)} m/s`, s.u / 0.6, ARMS[arm].color, [[s.vc / 0.6, '#e2e8f0']]);
   gauge(ctx, gx(1), gy, gw, C ? 'lane' : 'lane error', `${(s.e * 1e3).toFixed(1)} mm`, s.e / 0.12, out ? '#ef4444' : '#34d399', [[0.25, '#94a3b8'], [0.75, '#94a3b8']], [[0, 0.25], [0.75, 1]], true);
   gauge(ctx, gx(2), gy, gw, C ? 'gyro ≠ enc' : 'gyro vs encoder', `${(Math.abs(s.D) / D2R).toFixed(2)}°`, Math.abs(s.D) / D2R / 2.4, s.alarm ? '#3b82f6' : '#a78bfa', [[H_DEG / 2.4, '#ef4444']]);
-  if (!C) { ctx.font = '500 11px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab'; ctx.fillText('trail = true path (green · amber > 15 mm · red out)   ghost = EKF estimate + 2σ   band = ±30 mm lane', 28, h - 26); }
+  if (out) { ctx.strokeStyle = `rgba(239,68,68,${0.55 + 0.35 * Math.sin(performance.now() / 140)})`; ctx.lineWidth = C ? 4 : 6; ctx.strokeRect(2, 2, w - 4, h - 4); }   // whole box incl. strip
 }
 
 // ---------------------------------------------------------------- straightened lane (overview)

@@ -1134,3 +1134,17 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
 - **Result:** at t = 11.5 s (gyro +1.5°/s), the strip shows N and DR diving to −74 and −114 mm beyond the band while SB, SA and SO stay inside it. All seven presets play to the end with no console errors.
 - **Meaning:** for the viva, the straightened lane is the single clearest picture of P1 and P3. **If asked, say that the robot icon is drawn small for visibility and all distances are true.**
 
+**2026-11-23 · Claude · fix: gauges and banners covered the robot on wide screens (display only, no new runs)**
+- **What:** on Pushkar's screen (views 706×260 px), the speed, lane-error and gyro gauges hid the robot.
+  - **Cause:** views wider than 560 px take the non-compact overlay path, which was laid out for the old 470 px-tall two-view demo: an 86 px gauge panel and legend, a banner at h − 132, and the robot 0.06 m (47 px) below centre. At 260 px tall that put the robot at y ≈ 177, under the gauges (y 164–250).
+  - **Why I missed it:** my earlier checks ran at 1920 px or narrower, where views are under 560 px and use the compact path. The wide path was never exercised after the views shrank.
+  - **Fix in `drawView`:**
+    - Each view is now split into a **scene** (0..SH) and a **separate gauge strip** below it (44 px compact, 48 px wide), with its own background and divider. The scene is clipped to its area, so nothing drawn for the scene can enter the strip, and the gauges are never drawn over the scene.
+    - The reference point sits at SH/2 + 8 and the status banner just above the strip.
+    - The in-view legend line was dropped; the same legend sits under the grid.
+    - The out-of-lane red frame still surrounds the whole box.
+    - In views narrower than 420 px, the mm label moves to the robot's left so the right column of status pills cannot cover it.
+  - **Unchanged:** lane zoom (0.62 m / 0.9 m across), robot glyph size (32% / 45%), the camera following the reference point, trails, the peak marker and every number.
+- **Regression check, done this time on both paths:** 2550×1176 (views 706×260, wide path), 1920×1080 (496×260, compact), 1366×768 (330×210, compact), each at t = 9.0 s (banners showing) and t = 11.5 s (N and DR out of the lane). All seven presets were stepped through five time points at 1366 and at 2550 with no runtime errors.
+- **Meaning:** the robot, the lane and the gauges no longer compete for space at any screen size.
+
