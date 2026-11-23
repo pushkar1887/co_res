@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Version** | rev 3.3, 2026-11-23 (rev 3.2 plus two M1 verification fixes: boxcar gyro output and EKF bias process noise) |
-| **Status** | **M2 + M3 runs complete** (A, CAL, B0, B, C, D, S). P1–P4 supported; H1a 3/4, H1b 13/18, H1c 18/18; H2 supported with caveats; H4 supported. Every result is **provisional until V9 (Codex)**. Open: V9, M4 (ESP32 + demo), paper. Run history: §20 |
+| **Version** | rev 3.6, 2026-11-23 (change log §17) |
+| **Status** | **M2 + M3 runs complete** (A, CAL, B0, B, C, D, S). P1–P4 supported; H1a 3/4, H1b 13/18, H1c 18/18; H2 supported with caveats; H4 supported. **M4 done: V8 parity PASS on the ESP32 (Wokwi), both traces.** Every result is **provisional until V9 (Codex)**. Open: V9, paper. Run history: §20 |
 | **People** | Pushkar: PI, paper, viva · Claude: simulator, experiments, analysis, firmware · Codex: independent review, reference implementation |
 | **Course** | DSEU BT-PR701 Project-I (4 credits). Target: a 6-page IEEE-format workshop paper |
 | **Data** | 100% simulated, seeded, reproducible. Never presented as measured |
@@ -1012,3 +1012,22 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - **JS replay check: bit-exact.** Replaying each trace with the firmware's control flow (integer ticks; the simulator's own functions in double precision) gives max pose, heading, D and wheel-command differences of exactly 0, and 0 differing alarm rows, over 706 rows for both traces. So the trace carries every input the firmware needs, and the firmware's step order is right. Any V8 difference can now only come from float32 arithmetic or a mistake in the C++ port.
   - **Demo, seed 1, 4 s blackout from entry, gyro +1°/s:** N 48.6 mm peak (breach); SB 17.2; SA 16.9 (alarm 0.44 s after the fault, 2.12 s lost); SO 17.0; DR 88.3 mm.
 - **Deviation from the plan:** the demo uses plain HTML `<canvas>`, not p5.js. p5 would need a CDN (internet) or a downloaded library; canvas works **offline**, which matters for a viva room, and needs no dependency. The visuals are the same. Codex can contest this in §19.
+
+**2026-11-23 · Claude · V8: ESP32 firmware parity in Wokwi**
+- **What:** ran `firmware/esp32_wokwi/` in the Wokwi web simulator (ESP32 DevKitC-V4, files from commit `c30f4b9`, unsigned build). The firmware replays pass 1 "healthy" and pass 2 "gyro_fault" (706 × 20 ms steps each, B0 primary cell, SA, seed 1). After each pass it compares its float32 estimator with the browser reference at every step.
+- **Why:** check V8 (PLAN §9), M4 exit criterion.
+- **Where:** firmware `firmware/esp32_wokwi/`; how to run in §0. Evidence is the Wokwi serial log (summary lines quoted below).
+- **Result:**
+
+  | Pass | Max pose diff | Max heading diff | Max \|ΔD\| | Alarm rows differing | Max wheel-command diff | V8 |
+  |---|---|---|---|---|---|---|
+  | healthy | 0.0024 mm | 0.00018° | 0.00001° | 0 / 706 | 0.000003 m/s | **PASS** |
+  | gyro_fault | 0.0011 mm | 0.00015° | 0.00001° | 0 / 706 | 0.000001 m/s | **PASS** |
+
+  - The criteria were pose < 1 mm, identical alarm states and wheel commands < 1e-3 m/s.
+  - On the ESP32 the alarm fired at t = 8.04 s, 0.44 s after the fault at 7.60 s, the same as the browser run (demo: 0.44 s). The second loop reproduced both results.
+  - Estimator + monitor + steering step: mean 38–127 µs, max 320–450 µs per 20 ms step (Wokwi timing is indicative).
+- **Notes:**
+  1. In a hidden browser pane, Chromium throttled the simulation to a few % of real time. Visible, it ran at about 99%.
+  2. **Not tested by me:** the fault-injection button during pass 1. Try it live in the viva (§0).
+- **Meaning:** the estimator, monitor and policy run on a microcontroller in float32 and reproduce the browser simulation to micrometres, with identical alarm decisions. That's the "embedded port verified" claim of C4. **M4 is complete.** Remaining: V9 (Codex) and the paper.
