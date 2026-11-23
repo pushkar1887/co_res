@@ -2,8 +2,8 @@
   "experiment": "D",
   "folder": "d_burstiness",
   "runs": 1200,
-  "seconds": 3.614,
-  "created": "2026-11-22T22:34:28.144Z",
+  "seconds": 3.546,
+  "created": "2026-11-23T15:18:27.549Z",
   "paramsHash": "f9c9f7cf",
   "defaults": {
     "R": 1,
