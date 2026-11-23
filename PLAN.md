@@ -47,6 +47,7 @@ Both agents work on GitHub `pushkar1887/co_res` from different machines. Codex r
 - Codex (cloud, Linux): may have Node, for `tools/run_experiment.mjs`.
 
 **How to run.**
+- **Live site (GitHub Pages, auto-redeploys about 1 min after every push to `main`):** https://pushkar1887.github.io/co_res/ (viva demo: https://pushkar1887.github.io/co_res/web/demo.html). Save buttons download files there instead of writing to `results/`; use the local server for experiment runs.
 - **Simulator pages:** `python tools/serve.py` (optional port argument, default 8000), then open `http://localhost:8000/web/`. Batch runner: `web/batch.html`. Viva demo: `web/demo.html`. Both work offline.
 - **Figures:** `python analysis/<script>.py` (scripts in §12).
 - **ESP32 replay in Wokwi (no hardware, no sign-in needed):**
@@ -1160,4 +1161,23 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - N and DR are still clearly outside the ±30 mm lane: at 0.67 mm per px, DR's −98.6 mm is about 147 px from the centreline at 706 px wide.
   - The views end above the timeline at 2550×1176 (991 < 1084 px) and above the control bar at 1920×1080 (904 < 1009 px).
   - All seven presets stepped at five time points with no errors.
+
+**2026-11-23 · Claude · site hosted on GitHub Pages (no new runs)**
+- **What:**
+  - Enabled GitHub Pages for `pushkar1887/co_res`, deploying from branch `main`, folder `/`, with Pushkar's approval.
+  - Added a root `index.html` that redirects to `web/`, and an empty `.nojekyll` so files are served as they are.
+  - **Live:** https://pushkar1887.github.io/co_res/ (demo at `/web/demo.html`).
+- **Why:** to share the demo without localhost.
+- **Notes:**
+  - All pages are static and the simulator runs in the visitor's browser.
+  - There is no `tools/serve.py` online, so `/save` calls fall back to file downloads: batch results, ESP32 trace export, F10 data.
+  - No root-absolute paths exist in `web/` or `sim/`, so the `/co_res/` subpath is safe.
+  - **Every push to `main`, by Claude or Codex, goes live in about a minute.** Keep `main` presentable before the viva.
+- **Result:**
+  - The first Pages build (commit b918c17) is `built`.
+  - The live checks pass:
+    - the root redirects to `web/`;
+    - the landing page loads with all 6 figures, and the Copy buttons fetch the firmware from the live site;
+    - the demo plays all 7 presets with no console errors, with numbers identical to localhost (t = 11.5 s: N −66.7, DR −98.6, SA −24.9 mm; outcome N 74.5 OUT, SA 25.0 in, DR 114.0 OUT);
+    - the batch page renders its 8 experiment buttons and its module Web Worker loads.
 
