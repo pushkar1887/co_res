@@ -12,11 +12,11 @@ import { exportAll } from '../sim/trace_export.js';
 const D2R = Math.PI / 180, CORR = DEFAULTS.corridor, H_DEG = DEFAULTS.monThr / D2R;
 const P_B = { R: 1.0, v: 0.5, Ld: 0.30 };
 const ARMS = {
-  N:  { name: 'N',  title: 'Never slows down', color: '#ef4444' },
-  SB: { name: 'SB', title: 'Slows on every blackout', color: '#94a3b8' },
-  SA: { name: 'SA', title: 'Slows only when sensors disagree (ours)', color: '#3b82f6' },
-  SO: { name: 'SO', title: 'Oracle: knows exactly when the fault starts', color: '#22c55e' },
-  dr: { name: 'DR', title: 'Dead reckoning, no Kalman filter', color: '#f59e0b' },
+  N:  { name: 'N',  title: 'Never slows down', short: 'never slows', color: '#ef4444' },
+  SB: { name: 'SB', title: 'Slows on every blackout', short: 'slows every blackout', color: '#94a3b8' },
+  SA: { name: 'SA', title: 'Slows only when sensors disagree (ours)', short: 'slows on disagreement (ours)', color: '#3b82f6' },
+  SO: { name: 'SO', title: 'Oracle: knows exactly when the fault starts', short: 'oracle', color: '#22c55e' },
+  dr: { name: 'DR', title: 'Dead reckoning, no Kalman filter', short: 'no Kalman filter', color: '#f59e0b' },
 };
 const ORDER = ['N', 'SB', 'SA', 'SO', 'dr'];
 const PRESETS = [
@@ -37,7 +37,7 @@ const RACKS = [
 const CAMERA_POS = [1.6, 2.4];
 
 const $ = (id) => document.getElementById(id);
-const st = { preset: 'gyro1', Tb: 4, onset: 'entry', seed: 1, left: 'N', right: 'SA', T: 0, playing: false, speed: 1, presenter: false,
+const st = { preset: 'gyro1', Tb: 4, onset: 'entry', seed: 1, T: 0, playing: false, speed: 1, presenter: false,
   last: 0, sims: {}, W: null, tF: Infinity, t0: 0, t1: 1, events: [], cap: null, capUntil: 0, tlCache: null, dragging: false };
 
 // ---------------------------------------------------------------- simulation
@@ -53,7 +53,7 @@ function runAll() {
   st.T = st.t0; st.playing = false; setPlayIcon();
   buildEvents(pre); renderScores(); renderEvents(); st.tlCache = null;
   showCaption({ t: st.t0, h: `${pre.label} · ${st.Tb} s camera blackout ${ONSET_TXT[st.onset]}`,
-    b: `Left: ${ARMS[st.left].name}, ${ARMS[st.left].title.toLowerCase()}. Right: ${ARMS[st.right].name}, ${ARMS[st.right].title.toLowerCase()}. Same seed, same sensor noise, same blackout.`,
+    b: 'Five robots, five speed policies: N never slows, SB slows on every blackout, SA slows only when its sensors disagree (ours), SO is an oracle, DR has no Kalman filter. Same seed, same sensor noise, same blackout.',
     k: 'Press Space to play. Presenter mode pauses at every event.' }, performance.now() + 9000);
   draw();
 }
@@ -80,7 +80,7 @@ function buildEvents(pre) {
   const a = SA.run.alarmOn.find((t) => t >= W.tOn && t < W.tRet);
   if (a !== undefined) ev.push({ t: a, h: 'Monitor alarm → SA slows to 0.15 m/s', b: `Gyro heading and encoder heading disagree by more than ${H_DEG.toFixed(1)}° over the last 2 s.${isFinite(st.tF) && st.tF > 0 ? ` Detected ${(a - st.tF).toFixed(2)} s after the fault.` : ''} SA caps its speed: drift grows with speed × time, so slowing buys safety.` });
   else if (pre.id !== 'none') ev.push({ t: W.tOn + 0.4, h: 'No alarm from the monitor', b: 'The gyro and encoders do not disagree enough over the 2 s window, so SA keeps full speed.' });
-  for (const arm of new Set(['N', st.left, st.right])) {
+  for (const arm of ORDER) {
     const tb = firstBreach(arm);
     if (tb !== null) ev.push({ t: tb, h: `${ARMS[arm].name} leaves the ±30 mm lane`, b: `${ARMS[arm].title}: the true robot is now outside the safe corridor (peak ${(st.sims[arm].sc.peak * 1e3).toFixed(1)} mm in this run).`, bad: true });
   }
@@ -163,13 +163,14 @@ function ellipse(ctx, cx, cy, P00, P01, P11, ns, px) {
   ctx.beginPath(); ctx.ellipse(cx, cy, Math.max(ns * Math.sqrt(l1), 2 * px), Math.max(ns * Math.sqrt(l2), 2 * px), ang, 0, 2 * Math.PI);
   ctx.fillStyle = 'rgba(34,211,238,0.10)'; ctx.fill(); ctx.strokeStyle = 'rgba(34,211,238,0.85)'; ctx.lineWidth = 1.4 * px; ctx.stroke();
 }
-function pill(ctx, x, y, text, bg, fg = '#fff', align = 'left') {
-  ctx.font = '700 11.5px Inter, system-ui, sans-serif'; const w = ctx.measureText(text).width + 22, X = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
-  ctx.fillStyle = bg; rr(ctx, X, y, w, 24, 12); ctx.fill(); ctx.fillStyle = fg; ctx.fillText(text, X + 11, y + 16); return w;
+function pill(ctx, x, y, text, bg, fg = '#fff', align = 'left', size = 11.5) {
+  ctx.font = `700 ${size}px Inter, system-ui, sans-serif`; const pad = size * 0.95, ph = size * 2.1, w = ctx.measureText(text).width + 2 * pad, X = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
+  ctx.fillStyle = bg; rr(ctx, X, y, w, ph, ph / 2); ctx.fill(); ctx.fillStyle = fg; ctx.fillText(text, X + pad, y + ph * 0.67); return w;
 }
 function gauge(ctx, x, y, w, label, valTxt, frac, color, marks = [], zone = null, centered = false) {
-  ctx.font = '600 10.5px Inter, system-ui, sans-serif'; ctx.fillStyle = '#8a9bb8'; ctx.fillText(label.toUpperCase(), x, y);
-  ctx.font = '700 12px "JetBrains Mono", monospace'; ctx.fillStyle = '#e2e8f0'; const tw = ctx.measureText(valTxt).width; ctx.fillText(valTxt, x + w - tw, y);
+  const small = w < 150;
+  ctx.font = `600 ${small ? 9 : 10.5}px Inter, system-ui, sans-serif`; ctx.fillStyle = '#8a9bb8'; ctx.fillText(label.toUpperCase(), x, y);
+  ctx.font = `700 ${small ? 10.5 : 12}px "JetBrains Mono", monospace`; ctx.fillStyle = '#e2e8f0'; const tw = ctx.measureText(valTxt).width; ctx.fillText(valTxt, x + w - tw, y);
   const by = y + 6, bh = 8; ctx.fillStyle = '#0b1426'; rr(ctx, x, by, w, bh, 4); ctx.fill();
   if (zone) { ctx.fillStyle = 'rgba(239,68,68,0.25)'; for (const [a, b] of zone) ctx.fillRect(x + a * w, by, (b - a) * w, bh); }
   ctx.fillStyle = color;
@@ -200,11 +201,10 @@ function drawView(cv, arm) {
   ctx.strokeStyle = 'rgba(250,204,21,0.75)'; ctx.lineWidth = 2 * px; ctx.setLineDash([0.04, 0.035]); offsetLine(ctx, sa, sb, 0); ctx.stroke(); ctx.setLineDash([]);
   for (const d of [0.34, -0.34]) { ctx.strokeStyle = 'rgba(250,204,21,0.25)'; ctx.lineWidth = 3 * px; offsetLine(ctx, sa, sb, d); ctx.stroke(); }
   // trail coloured by |cross-track error|
-  const i0 = Math.round(st.t0 * 50); ctx.lineWidth = 3.2 * px; ctx.lineCap = 'round';
-  for (let i = i0; i < s.i; i++) {
-    const ae = Math.abs(L.e[i]); ctx.strokeStyle = ae > CORR ? '#ef4444' : ae > 0.015 ? '#f59e0b' : '#34d399';
-    ctx.beginPath(); ctx.moveTo(L.x[i], L.y[i]); ctx.lineTo(L.x[i + 1], L.y[i + 1]); ctx.stroke();
-  }
+  const i0 = Math.round(st.t0 * 50), trail = { g: new Path2D(), a: new Path2D(), r: new Path2D() };   // 3 batched paths (5 views per frame)
+  for (let i = i0; i < s.i; i++) { const ae = Math.abs(L.e[i]), P = ae > CORR ? trail.r : ae > 0.015 ? trail.a : trail.g; P.moveTo(L.x[i], L.y[i]); P.lineTo(L.x[i + 1], L.y[i + 1]); }
+  ctx.lineWidth = 3.2 * px; ctx.lineCap = 'round';
+  for (const [key, col] of [['g', '#34d399'], ['a', '#f59e0b'], ['r', '#ef4444']]) { ctx.strokeStyle = col; ctx.stroke(trail[key]); }
   // estimate: link, covariance ellipse (2 sigma), ghost
   if (arm !== 'hold') {
     ctx.strokeStyle = 'rgba(34,211,238,0.55)'; ctx.lineWidth = 1.2 * px; ctx.setLineDash([3 * px, 3 * px]); ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.xe, s.ye); ctx.stroke(); ctx.setLineDash([]);
@@ -215,32 +215,35 @@ function drawView(cv, arm) {
   robotShape(ctx, s.x, s.y, s.th, ARMS[arm].color, false, px);
   // ---- screen-space overlays
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.font = '700 10px Inter, system-ui, sans-serif'; ctx.fillStyle = 'rgba(148,163,184,0.55)';
-  for (const [lx, ly, lab] of labels) { const X = w / 2 + (lx - cx) * k, Y = h / 2 - (ly - cy) * k; if (X > -50 && X < w + 50 && Y > -20 && Y < h + 20) ctx.fillText(lab + ' · blocks the camera', X - 52, Y); }
+  const C = w < 560;                                   // compact overlay when five views share the screen
+  ctx.font = `700 ${C ? 9 : 10}px Inter, system-ui, sans-serif`; ctx.fillStyle = 'rgba(148,163,184,0.55)';
+  for (const [lx, ly, lab] of labels) { const X = w / 2 + (lx - cx) * k, Y = h / 2 - (ly - cy) * k; if (X > -50 && X < w + 50 && Y > -20 && Y < h + 20) ctx.fillText(lab + (C ? '' : ' · blocks the camera'), X - (C ? 18 : 52), Y); }
   const out = Math.abs(s.e) > CORR;
-  if (out) { ctx.strokeStyle = `rgba(239,68,68,${0.55 + 0.35 * Math.sin(performance.now() / 140)})`; ctx.lineWidth = 6; ctx.strokeRect(3, 3, w - 6, h - 6); }
+  if (out) { ctx.strokeStyle = `rgba(239,68,68,${0.55 + 0.35 * Math.sin(performance.now() / 140)})`; ctx.lineWidth = C ? 4 : 6; ctx.strokeRect(2, 2, w - 4, h - 4); }
   // header
-  ctx.fillStyle = 'rgba(7,11,20,0.72)'; rr(ctx, 12, 12, 330, 44, 12); ctx.fill();
-  ctx.fillStyle = ARMS[arm].color; ctx.beginPath(); ctx.arc(30, 34, 7, 0, 2 * Math.PI); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.font = '800 16px Inter, system-ui, sans-serif'; ctx.fillText(ARMS[arm].name, 45, 31);
-  ctx.fillStyle = '#9fb0cc'; ctx.font = '500 11.5px Inter, system-ui, sans-serif'; ctx.fillText(ARMS[arm].title, 45, 47);
-  const bo = inBlackout(T);
-  let yy = 14; pill(ctx, w - 12, yy, bo ? `CAMERA BLACKOUT · ${(T - st.W.tOn).toFixed(1)} s` : 'CAMERA OK · 10 Hz', bo ? '#b91c1c' : '#166534', '#fff', 'right'); yy += 30;
+  const ttl = C ? ARMS[arm].short : ARMS[arm].title;
+  ctx.font = `500 ${C ? 10.5 : 11.5}px Inter, system-ui, sans-serif`; const hw = ctx.measureText(ttl).width + (C ? 44 : 52);
+  ctx.fillStyle = 'rgba(7,11,20,0.75)'; rr(ctx, 10, 10, Math.max(hw, 70), C ? 38 : 44, 11); ctx.fill();
+  ctx.fillStyle = ARMS[arm].color; ctx.beginPath(); ctx.arc(25, C ? 29 : 32, C ? 6 : 7, 0, 2 * Math.PI); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = `800 ${C ? 14 : 16}px Inter, system-ui, sans-serif`; ctx.fillText(ARMS[arm].name, 37, C ? 26 : 29);
+  ctx.fillStyle = '#9fb0cc'; ctx.font = `500 ${C ? 10.5 : 11.5}px Inter, system-ui, sans-serif`; ctx.fillText(ttl, 37, C ? 41 : 45);
+  const bo = inBlackout(T), fs = C ? 10 : 11.5, ph = fs * 2.1 + 5;
+  let yy = 12; pill(ctx, w - 10, yy, bo ? (C ? `BLACKOUT ${(T - st.W.tOn).toFixed(1)} s` : `CAMERA BLACKOUT · ${(T - st.W.tOn).toFixed(1)} s`) : (C ? 'CAMERA OK' : 'CAMERA OK · 10 Hz'), bo ? '#b91c1c' : '#166534', '#fff', 'right', fs); yy += ph;
   const pre = PRESETS.find((p) => p.id === st.preset);
-  if (pre.chip && (faultActive(T) || pre.fault.kind === 'scale' || pre.fault.kind === 'diff')) { pill(ctx, w - 12, yy, pre.chip, '#92400e', '#fff', 'right'); yy += 30; }
-  if (out) pill(ctx, w - 12, yy, `OUT OF LANE · ${(Math.abs(s.e) * 1e3).toFixed(0)} mm`, '#ef4444', '#fff', 'right');
-  const slowed = s.vc > 0 && s.vc < 0.9 * P_B.v;
-  if (s.alarm && arm === 'SA') pill(ctx, w / 2, h - 132, 'SENSORS DISAGREE → SLOWING TO 0.15 m/s', '#1d4ed8', '#fff', 'center');
-  else if (slowed) pill(ctx, w / 2, h - 132, arm === 'SB' ? 'BLANKET RULE: BLACKOUT → SLOW TO 0.15 m/s' : arm === 'SO' ? 'ORACLE: FAULT KNOWN → SLOW' : 'SLOWED', '#334155', '#fff', 'center');
-  else if (s.alarm) pill(ctx, w / 2, h - 132, `SENSORS DISAGREE · ${ARMS[arm].name} IGNORES IT, FULL SPEED`, '#7f1d1d', '#fff', 'center');
-  // legend + gauges
-  ctx.fillStyle = 'rgba(7,11,20,0.78)'; rr(ctx, 12, h - 98, w - 24, 86, 12); ctx.fill();
-  const gw = (w - 24 - 4 * 16) / 3, gy = h - 76;
-  gauge(ctx, 28, gy, gw, 'speed', `${s.u.toFixed(2)} m/s`, s.u / 0.6, ARMS[arm].color, [[s.vc / 0.6, '#e2e8f0']]);
-  gauge(ctx, 28 + gw + 16, gy, gw, 'lane error', `${(s.e * 1e3).toFixed(1)} mm`, s.e / 0.12, out ? '#ef4444' : '#34d399', [[0.25, '#94a3b8'], [0.75, '#94a3b8']], [[0, 0.25], [0.75, 1]], true);
-  gauge(ctx, 28 + 2 * (gw + 16), gy, gw, 'gyro vs encoder', `${(Math.abs(s.D) / D2R).toFixed(2)}°`, Math.abs(s.D) / D2R / 2.4, s.alarm ? '#3b82f6' : '#a78bfa', [[H_DEG / 2.4, '#ef4444']]);
-  ctx.font = '500 11px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab';
-  ctx.fillText('trail = true path (green · amber > 15 mm · red out)   ghost = EKF estimate + 2σ   band = ±30 mm lane', 28, h - 26);
+  if (pre.chip && (faultActive(T) || pre.fault.kind === 'scale' || pre.fault.kind === 'diff')) { pill(ctx, w - 10, yy, pre.chip, '#92400e', '#fff', 'right', fs); yy += ph; }
+  if (out) pill(ctx, w - 10, yy, C ? `OUT · ${(Math.abs(s.e) * 1e3).toFixed(0)} mm` : `OUT OF LANE · ${(Math.abs(s.e) * 1e3).toFixed(0)} mm`, '#ef4444', '#fff', 'right', fs);
+  const slowed = s.vc > 0 && s.vc < 0.9 * P_B.v, by = h - (C ? 98 : 132);
+  if (s.alarm && arm === 'SA') pill(ctx, w / 2, by, C ? 'DISAGREE → SLOW TO 0.15 m/s' : 'SENSORS DISAGREE → SLOWING TO 0.15 m/s', '#1d4ed8', '#fff', 'center', fs);
+  else if (slowed) pill(ctx, w / 2, by, arm === 'SB' ? (C ? 'BLANKET RULE → SLOW' : 'BLANKET RULE: BLACKOUT → SLOW TO 0.15 m/s') : arm === 'SO' ? (C ? 'ORACLE → SLOW' : 'ORACLE: FAULT KNOWN → SLOW') : 'SLOWED', '#334155', '#fff', 'center', fs);
+  else if (s.alarm) pill(ctx, w / 2, by, C ? `DISAGREE · ${ARMS[arm].name} IGNORES IT` : `SENSORS DISAGREE · ${ARMS[arm].name} IGNORES IT, FULL SPEED`, '#7f1d1d', '#fff', 'center', fs);
+  // gauges (+ legend line when there is room)
+  const gh = C ? 58 : 86, pad = C ? 10 : 16;
+  ctx.fillStyle = 'rgba(7,11,20,0.78)'; rr(ctx, 10, h - gh - 10, w - 20, gh, 10); ctx.fill();
+  const gw = (w - 20 - 4 * pad) / 3, gy = h - gh + 12, gx = (j) => 10 + pad + j * (gw + pad);
+  gauge(ctx, gx(0), gy, gw, 'speed', `${s.u.toFixed(2)} m/s`, s.u / 0.6, ARMS[arm].color, [[s.vc / 0.6, '#e2e8f0']]);
+  gauge(ctx, gx(1), gy, gw, C ? 'lane' : 'lane error', `${(s.e * 1e3).toFixed(1)} mm`, s.e / 0.12, out ? '#ef4444' : '#34d399', [[0.25, '#94a3b8'], [0.75, '#94a3b8']], [[0, 0.25], [0.75, 1]], true);
+  gauge(ctx, gx(2), gy, gw, C ? 'gyro ≠ enc' : 'gyro vs encoder', `${(Math.abs(s.D) / D2R).toFixed(2)}°`, Math.abs(s.D) / D2R / 2.4, s.alarm ? '#3b82f6' : '#a78bfa', [[H_DEG / 2.4, '#ef4444']]);
+  if (!C) { ctx.font = '500 11px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab'; ctx.fillText('trail = true path (green · amber > 15 mm · red out)   ghost = EKF estimate + 2σ   band = ±30 mm lane', 28, h - 26); }
 }
 
 // ---------------------------------------------------------------- overview map
@@ -260,8 +263,8 @@ function drawMini() {
   ctx.fillStyle = '#e2e8f0'; ctx.fillRect(CAMERA_POS[0] - 0.12, CAMERA_POS[1] - 0.08, 0.24, 0.16); ctx.fillStyle = bo ? '#ef4444' : '#22c55e'; ctx.beginPath(); ctx.arc(CAMERA_POS[0], CAMERA_POS[1], 0.05, 0, 2 * Math.PI); ctx.fill();
   const pos = ORDER.map((a) => [a, sample(st.sims[a].run, st.T)]);
   for (const [a, s] of pos) {
-    ctx.fillStyle = ARMS[a].color; ctx.beginPath(); ctx.arc(s.x, s.y, (a === st.left || a === st.right ? 0.13 : 0.09), 0, 2 * Math.PI); ctx.fill();
-    if (a === st.left || a === st.right) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * px; ctx.stroke(); }
+    ctx.fillStyle = ARMS[a].color; ctx.beginPath(); ctx.arc(s.x, s.y, (a === 'SA' ? 0.13 : 0.1), 0, 2 * Math.PI); ctx.fill();
+    if (a === 'SA') { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * px; ctx.stroke(); }
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.font = '700 10px Inter, system-ui, sans-serif';
   for (const [a, s] of pos) { const X = ox + (s.x - xmin) * k, Y = h - (s.y - ymin) * k; ctx.fillStyle = ARMS[a].color; ctx.fillText(ARMS[a].name, X + 9, Y - 6); }
@@ -324,12 +327,12 @@ function paintTimeline(c, w, h) {
   m = Math.ceil(m / 15) * 15;
   const Ye = box(66, 132, -m, m, 'lane err', [-m, -30, 0, 30, m], (v) => `${v}`);
   c.fillStyle = 'rgba(239,68,68,0.08)'; c.fillRect(TL.L, Ye(m), w - TL.L - TL.R, Ye(30) - Ye(m)); c.fillRect(TL.L, Ye(-30), w - TL.L - TL.R, Ye(-m) - Ye(-30));
-  for (const a of [...ORDER.filter((q) => q !== st.left && q !== st.right), st.left, st.right]) {
-    const L = st.sims[a].run.log, bold = a === st.left || a === st.right; c.strokeStyle = ARMS[a].color; c.globalAlpha = bold ? 1 : 0.28; c.lineWidth = bold ? 2 : 1.2;
+  for (const a of [...ORDER.filter((q) => q !== 'SA'), 'SA']) {
+    const L = st.sims[a].run.log, bold = a === 'SA' || a === 'N'; c.strokeStyle = ARMS[a].color; c.globalAlpha = bold ? 1 : 0.7; c.lineWidth = bold ? 2.2 : 1.4;
     c.beginPath(); let go = false; for (let i = 0; i < L.t.length; i++) { const t = L.t[i]; if (t < st.t0 || t > st.t1) continue; const p = [X(t), Ye(L.e[i] * 1e3)]; go ? c.lineTo(...p) : c.moveTo(...p); go = true; } c.stroke();
   }
   c.globalAlpha = 1;
-  const rArm = ['N', 'SB', 'SA', 'SO'].includes(st.right) ? st.right : 'SA', LR = st.sims[rArm].run.log;
+  const rArm = 'SA', LR = st.sims[rArm].run.log;
   let md = 1.2; LR.t.forEach((t, i) => { if (t >= st.t0 && t <= st.t1) md = Math.max(md, Math.abs(LR.D[i]) / D2R * 1.1); });
   const Yd = box(210, 70, -md, md, `${ARMS[rArm].name} gyro−enc`, [-H_DEG, 0, H_DEG], (v) => `${v.toFixed(1)}°`);
   c.strokeStyle = 'rgba(239,68,68,0.8)'; c.setLineDash([5, 4]); for (const v of [H_DEG, -H_DEG]) { c.beginPath(); c.moveTo(TL.L, Yd(v)); c.lineTo(w - TL.R, Yd(v)); c.stroke(); } c.setLineDash([]);
@@ -344,7 +347,8 @@ function paintTimeline(c, w, h) {
 
 // ---------------------------------------------------------------- main loop
 function draw() {
-  drawView($('viewL'), st.left); drawView($('viewR'), st.right); drawMini(); drawRace(); drawTimeline();
+  for (const a of ORDER) drawView($(`view_${a}`), a);
+  drawMini(); drawRace(); drawTimeline();
   const bo = inBlackout(st.T);
   $('clock').innerHTML = `${st.T.toFixed(2)} s<small>${bo ? `blackout ${(st.T - st.W.tOn).toFixed(1)} / ${st.Tb} s` : st.T < st.W.tOn ? `blackout in ${(st.W.tOn - st.T).toFixed(1)} s` : 'camera back'}</small>`;
   const act = st.events.reduce((k, e, i) => (e.t <= st.T + 1e-6 ? i : k), -1);
@@ -389,11 +393,6 @@ const syncPresets = () => document.querySelectorAll('#presets .chip').forEach((b
 $('presets').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; st.preset = b.dataset.id; syncPresets(); runAll(); });
 syncPresets();
 seg('tb', 'Tb', runAll); seg('onset', 'onset', runAll); seg('speed', 'speed');
-for (const side of ['left', 'right']) {
-  $(side).innerHTML = ORDER.map((a) => `<option value="${a}">${ARMS[a].name} · ${ARMS[a].title}</option>`).join('');
-  $(side).value = st[side];
-  $(side).addEventListener('change', (e) => { st[side] = e.target.value; buildEvents(PRESETS.find((p) => p.id === st.preset)); renderEvents(); st.tlCache = null; });
-}
 $('seed').addEventListener('change', (e) => { st.seed = Math.max(1, +e.target.value || 1); runAll(); });
 $('dice').onclick = () => { st.seed = 1 + Math.floor(Math.random() * 999); $('seed').value = st.seed; runAll(); };
 $('presenter').addEventListener('change', (e) => { st.presenter = e.target.checked; });

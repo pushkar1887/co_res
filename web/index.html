@@ -11,14 +11,14 @@
 <body>
 <header class="topbar">
   <div class="brand"><div class="logo"></div><div>Consistency-gated slowdown<small>DSEU BT-PR701 Project-I · simulation study</small></div></div>
-  <nav class="nav"><a class="active" href="index.html">Overview</a><a href="demo.html">Viva demo</a><a href="batch.html">Batch runner</a><a href="https://github.com/pushkar1887/co_res" target="_blank" rel="noopener">GitHub</a></nav>
+  <nav class="nav"><a class="active" href="index.html">Overview</a><a href="demo.html">Viva demo</a><a href="batch.html">Batch runner</a><a href="https://wokwi.com/projects/481495099027592193" target="_blank" rel="noopener" title="Open the ESP32 firmware project in Wokwi">ESP32 (Wokwi) ↗</a><a href="https://github.com/pushkar1887/co_res" target="_blank" rel="noopener">GitHub</a></nav>
 </header>
 
 <section class="hero">
   <span class="badge">Sensor fusion · fault detection · warehouse robotics · all data simulated</span>
   <h1>When the camera goes dark, <em>slow down only when the sensors disagree</em></h1>
   <p class="lead">A warehouse robot loses its overhead-camera position fix behind a rack, right at a turn. It keeps driving on wheel encoders and a gyro inside a Kalman filter. If a sensor fails during the blackout, nobody can see it, except the robot itself: it compares the gyro's turn with the wheels' turn and slows down only when they disagree.</p>
-  <div class="cta"><a class="btn primary" href="demo.html">Launch the viva demo</a><a class="btn" href="#results">See the results</a><a class="btn ghost" href="https://github.com/pushkar1887/co_res/blob/main/PLAN.md" target="_blank" rel="noopener">Read the plan</a></div>
+  <div class="cta"><a class="btn primary" href="demo.html">Launch the viva demo</a><a class="btn" href="#results">See the results</a><a class="btn" href="https://wokwi.com/projects/481495099027592193" target="_blank" rel="noopener">Run it on an ESP32 (Wokwi) ↗</a><a class="btn ghost" href="https://github.com/pushkar1887/co_res/blob/main/PLAN.md" target="_blank" rel="noopener">Read the plan</a></div>
 </section>
 
 <div class="wrap">
@@ -53,6 +53,32 @@
     </div>
   </div>
 
+  <div class="section" id="wokwi">
+    <h2>Run it on an ESP32 in Wokwi</h2>
+    <p>The same EKF and monitor, ported to float32 C++ on an ESP32, replay two recorded traces from the simulator (healthy and gyro fault) in the free Wokwi simulator. No hardware needed. Parity result (V8): 0.002 mm, identical alarms.</p>
+    <div class="wokwi">
+      <div class="wk-left">
+        <div class="cta" style="justify-content:flex-start;margin:0 0 16px"><a class="btn primary" href="https://wokwi.com/projects/481495099027592193" target="_blank" rel="noopener">Open the ESP32 project in Wokwi ↗</a><a class="btn" href="https://github.com/pushkar1887/co_res/tree/main/firmware/esp32_wokwi" target="_blank" rel="noopener">Firmware on GitHub ↗</a></div>
+        <ol class="wk-steps">
+          <li>Open the project (button above). All six files are already in it.</li>
+          <li>Press <b>▶</b>. The build queues for about a minute; keep the tab in front, as background tabs run slower.</li>
+          <li>The serial monitor prints a CSV line every 0.1 s, and <code>V8 PARITY (...): PASS</code> after each 14 s pass.</li>
+          <li>During pass 1's blackout (t = 7.1–11.1 s), press the <b>red button</b>: it adds +1°/s to the gyro, and the red alarm LED lights about 0.5 s later.</li>
+        </ol>
+        <details class="wk-manual"><summary>Build it yourself in a blank project</summary>
+          <ol class="wk-steps">
+            <li>Open a <a href="https://wokwi.com/projects/new/esp32" target="_blank" rel="noopener">new Wokwi ESP32 project ↗</a>.</li>
+            <li>Copy <b>sketch.ino</b> and <b>diagram.json</b> from the list and paste each over the file of the same name.</li>
+            <li>For the other four files, use <b>▾ next to the editor tabs → New file…</b>, type the name (clear the box first, it keeps the last name), then paste.</li>
+            <li>After a change in <code>sim/</code>, regenerate the traces in the demo (Export ESP32 traces) and paste the new files.</li>
+          </ol>
+        </details>
+      </div>
+      <div class="wk-files" id="wkFiles"></div>
+    </div>
+    <p class="note" id="wkNote" style="margin-top:10px">Copy reads the files from this server (<code>firmware/esp32_wokwi/</code>); without the server it reads them from GitHub.</p>
+  </div>
+
   <div class="section">
     <h2>Experiments</h2>
     <table class="plain">
@@ -67,5 +93,32 @@
   </div>
 </div>
 <footer class="foot">All data is simulated (assumed MEMS-class sensors). Plan, discussion log and run log: <a href="https://github.com/pushkar1887/co_res/blob/main/PLAN.md">PLAN.md</a>. Built by Pushkar with Claude and Codex.</footer>
+<script>
+// Wokwi files: one-click copy (local server first, GitHub raw as fallback)
+const WK = [['sketch.ino', 'main program: replay, monitor, LEDs, button'], ['diagram.json', 'board, LEDs, button wiring'], ['estimator.h', 'float32 EKF + monitor v2'],
+  ['sim_params.h', 'parameters exported from the simulator'], ['trace_healthy.h', 'healthy 4 s blackout, 706 steps'], ['trace_gyro_fault.h', '+1°/s gyro fault, 706 steps']];
+const RAW = 'https://raw.githubusercontent.com/pushkar1887/co_res/main/firmware/esp32_wokwi/', GH = 'https://github.com/pushkar1887/co_res/blob/main/firmware/esp32_wokwi/';
+async function wkText(f) {
+  try { const r = await fetch('../firmware/esp32_wokwi/' + f, { cache: 'no-store' }); if (r.ok) return await r.text(); } catch {}
+  const r = await fetch(RAW + f); if (!r.ok) throw new Error(r.status); return await r.text();
+}
+async function wkCopy(f, b) {
+  const old = b.textContent; b.disabled = true;
+  try {
+    const t = await wkText(f);
+    try { await navigator.clipboard.writeText(t); }
+    catch { const a = Object.assign(document.createElement('textarea'), { value: t }); document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); }
+    b.textContent = `Copied ${(t.length / 1024).toFixed(1)} kB`; b.classList.add('ok');
+  } catch (e) { b.textContent = 'Copy failed'; }
+  setTimeout(() => { b.textContent = old; b.classList.remove('ok'); b.disabled = false; }, 1800);
+}
+const box = document.getElementById('wkFiles');
+WK.forEach(([f, d], i) => {
+  const row = document.createElement('div'); row.className = 'wk-file';
+  row.innerHTML = `<span class="i">${i + 1}</span><div><code>${f}</code><small>${d}</small></div><a class="btn ghost" href="${GH + f}" target="_blank" rel="noopener">View</a><button class="btn">Copy</button>`;
+  row.querySelector('button').onclick = (e) => wkCopy(f, e.currentTarget);
+  box.appendChild(row);
+});
+</script>
 </body>
 </html>

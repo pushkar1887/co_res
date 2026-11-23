@@ -11,25 +11,28 @@
 <body>
 <header class="topbar">
   <div class="brand"><div class="logo"></div><div>Consistency-gated slowdown<small>Viva demo · camera blackouts at warehouse turns</small></div></div>
-  <nav class="nav"><a href="index.html">Overview</a><a class="active" href="demo.html">Viva demo</a><a href="batch.html">Batch runner</a><a href="https://github.com/pushkar1887/co_res" target="_blank" rel="noopener">GitHub</a></nav>
+  <nav class="nav"><a href="index.html">Overview</a><a class="active" href="demo.html">Viva demo</a><a href="batch.html">Batch runner</a><a href="https://wokwi.com/projects/481495099027592193" target="_blank" rel="noopener" title="Open the ESP32 firmware project in Wokwi">ESP32 (Wokwi) ↗</a><a href="https://github.com/pushkar1887/co_res" target="_blank" rel="noopener">GitHub</a></nav>
 </header>
 
 <section class="scenario-bar">
   <div class="group">Scenario <div class="chips" id="presets"></div></div>
   <div class="group">Blackout <div class="seg" id="tb"><button data-v="2">2 s</button><button data-v="4">4 s</button></div></div>
   <div class="group">Starts at <div class="seg" id="onset"><button data-v="pre">Straight</button><button data-v="entry">Turn entry</button><button data-v="mid">Mid-turn</button><button data-v="exit">Turn exit</button></div></div>
-  <div class="group">Compare <select id="left"></select><span>vs</span><select id="right"></select></div>
   <div class="group">Seed <input id="seed" type="number" min="1" max="9999" value="1"><button id="dice" title="random seed">Shuffle</button></div>
 </section>
 
 <main class="stage">
   <div class="views">
-    <div class="view"><canvas id="viewL"></canvas></div>
-    <div class="view"><canvas id="viewR"></canvas></div>
     <div id="caption" class="caption"><div class="t"></div><div class="h"></div><div class="b"></div><div class="k"></div></div>
+    <div class="view"><canvas id="view_N"></canvas></div>
+    <div class="view"><canvas id="view_SB"></canvas></div>
+    <div class="view hl"><canvas id="view_SA"></canvas></div>
+    <div class="view r2a"><canvas id="view_SO"></canvas></div>
+    <div class="view r2b"><canvas id="view_dr"></canvas></div>
+    <div class="legend-line">Each view follows one robot. Trail = true path (green, amber &gt; 15 mm, red = out of lane) · cyan ghost = EKF estimate + 2σ ellipse · green band = ±30 mm lane · red band = where the camera is blind.</div>
   </div>
   <aside class="side">
-    <div class="card"><h3>Warehouse overview</h3><canvas id="mini" style="height:300px"></canvas></div>
+    <div class="card"><h3>Warehouse overview · all five robots</h3><canvas id="mini" style="height:300px"></canvas></div>
     <div class="card"><h3>Race along the route</h3><div id="race"></div></div>
     <div class="card"><h3>Outcome of this run</h3><div id="verdict"></div><table class="scores" id="scores"></table></div>
     <div class="card events"><h3>Story · click to jump</h3><ol id="events"></ol></div>

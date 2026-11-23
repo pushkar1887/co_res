@@ -50,6 +50,8 @@ Both agents work on GitHub `pushkar1887/co_res` from different machines. Codex r
 - **Simulator pages:** `python tools/serve.py` (optional port argument, default 8000), then open `http://localhost:8000/web/`. Batch runner: `web/batch.html`. Viva demo: `web/demo.html`. Both work offline.
 - **Figures:** `python analysis/<script>.py` (scripts in §12).
 - **ESP32 replay in Wokwi (no hardware, no sign-in needed):**
+  - **Ready-made project:** https://wokwi.com/projects/481495099027592193 (saved from Pushkar's Wokwi account, public, all six files of `firmware/esp32_wokwi/` at commit c30f4b9). Open it and press ▶, then continue at step 4. Linked from every web page ("ESP32 (Wokwi) ↗"). **If `sim/` or the firmware changes, re-paste the changed files there and save, or the link goes stale.**
+  - **Or build it yourself in a blank project:**
   1. Open `https://wokwi.com/projects/new/esp32`.
   2. Replace `sketch.ino` and `diagram.json` with the files in `firmware/esp32_wokwi/`.
   3. With the **▾ next to the editor tabs → New file…**, add `estimator.h`, `sim_params.h`, `trace_healthy.h` and `trace_gyro_fault.h`, and paste each file's content. Clear the name box first: it keeps the last name.
@@ -1056,3 +1058,25 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
     - wheels +3%: every policy leaves the lane (known limitation).
   - All landing-page figures load.
 - **Meaning:** the viva can be run as a narrated story. Each claim in the paper has a visible moment in the demo, with numbers computed live by the same simulator.
+
+**2026-11-23 · Claude · demo shows all five policies at once; Wokwi project saved and linked (no new experiment runs)**
+- **What:**
+  - **`web/demo.html` / `demo.js`:** the two-view "Compare A vs B" selector is gone. All five follow-cameras (N, SB, SA, SO, DR) run side by side on the same seed, blackout and fault: three in the top row, two centred below, with SA outlined.
+    - When views are narrower than 560 px the overlay goes compact: short policy names, smaller pills, banners and gauges, no legend line. A shared legend line sits under the grid instead.
+    - Trails are drawn as three batched `Path2D` strokes, because there are five views per frame.
+    - The event caption is now a strip above the grid, no longer an overlay; it would otherwise cover a robot.
+    - The overview map stays at the top of the side panel. The timeline draws every policy's lane error and highlights SA and N.
+  - **`web/style.css`:** a 6-column grid (spans of 2, row 2 offset by one column). View height is `clamp(210px, (100vh − 430px)/2, 260px)`, so both rows fit on a 1080p or 864p screen above the transport bar. Below 1250 px it uses 2 columns, below 760 px 1 column.
+  - **Wokwi access:**
+    - Saved the firmware as a public project in Pushkar's Wokwi account (Unlisted needs a paid plan; Pushkar approved Public): https://wokwi.com/projects/481495099027592193.
+    - Every page's nav has "ESP32 (Wokwi) ↗". The landing hero links to it.
+    - New landing section `#wokwi`: open-project button, run steps, a "build it yourself" fallback, and one-click **Copy** buttons for all six files. These read from `tools/serve.py` and fall back to raw GitHub.
+- **Why:** user request: compare all five at once with everything else unchanged, and easy access to Wokwi.
+- **Where:** `web/demo.html`, `web/demo.js`, `web/index.html`, `web/batch.html`, `web/style.css`; PLAN §0 (how to run).
+- **Result:**
+  - Checked in the browser at 1920×1080, 1680×1000, 1536×864 and 1366×768: five views of 496×260 px at 1080p, three over two.
+  - All six presets play to the end (t = 14.70 s) with no console errors. The scores table and story list cover all five policies.
+  - All six Copy buttons fetch the right file sizes (5,658 to 104,740 chars). The Copy button for `sketch.ino` filled the clipboard.
+  - The saved Wokwi project contains all six files (line counts match the repo). It compiles, boots and starts pass 1 with sane CSV rows (t = 0.1–0.3 s, camera fresh). **Not re-observed:** the `V8 PARITY: PASS` line. The browser pane ran Wokwi at 1% of real time this session, and the files are byte-identical to the ones that passed V8 (§20, M4 entry).
+- **Meaning:** the viva shows the full policy comparison in one frame. The examiners can see N and DR leave the lane while SA slows only after the alarm and SB slows from the start. The ESP32 parity run is one click away.
+
