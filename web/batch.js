@@ -34,10 +34,12 @@ window.runAndSave = (id) => new Promise((resolve, reject) => {
   w.postMessage({ id });
 });
 
+const DESC = { V: 'Verification checks V1–V7, V10 + synthetic gyro log', A: 'Short gaps: HOLD / DR / EKF · 1,080 runs', CAL: 'Monitor calibration · 480 runs', B0: 'Main test: N / SB / SA / SO · 960 runs',
+  B: 'Fault × onset map · 4,800 runs', C: 'Scaling, regret curve, lookahead · 900 runs', D: 'Burstiness at 10% loss · 1,200 runs', S: 'Sensitivity variants · 1,280 runs' };
 const box = document.getElementById('buttons');
 for (const id of IDS) {
   const b = document.createElement('button');
-  b.textContent = id === 'V' ? 'Run V (verification)' : `Run ${id}`;
+  b.innerHTML = `<b>${id === 'V' ? 'V · verification' : `Part ${id}`}</b><span>${DESC[id]}</span>`;
   b.onclick = () => window.runAndSave(id).catch(() => {});
   box.appendChild(b);
 }

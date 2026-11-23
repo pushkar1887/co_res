@@ -3,20 +3,69 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>co_res: camera blackouts at warehouse turns</title>
+<title>Slow down only when the sensors disagree · camera blackouts at warehouse turns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>Camera blackouts at warehouse turns</h1>
-  <p>Simulated differential-drive robot: Pure Pursuit, EKF (encoders + gyro + camera), gyro–encoder consistency monitor. All data is simulated.</p>
+<header class="topbar">
+  <div class="brand"><div class="logo"></div><div>Consistency-gated slowdown<small>DSEU BT-PR701 Project-I · simulation study</small></div></div>
+  <nav class="nav"><a class="active" href="index.html">Overview</a><a href="demo.html">Viva demo</a><a href="batch.html">Batch runner</a><a href="https://github.com/pushkar1887/co_res" target="_blank" rel="noopener">GitHub</a></nav>
 </header>
-<main>
-  <ul>
-    <li><a href="demo.html">Viva demo</a>: replay one blackout with every speed policy side by side; export the ESP32 traces.</li>
-    <li><a href="batch.html">Batch runner</a>: run the experiment grids of PLAN.md §7 and save the CSVs into <code>results/</code>.</li>
-  </ul>
-  <p class="note">Start the server with <code>python tools/serve.py</code> from the repo root, then open <code>http://localhost:8000/web/</code>. No internet connection is needed.</p>
-</main>
+
+<section class="hero">
+  <span class="badge">Sensor fusion · fault detection · warehouse robotics · all data simulated</span>
+  <h1>When the camera goes dark, <em>slow down only when the sensors disagree</em></h1>
+  <p class="lead">A warehouse robot loses its overhead-camera position fix behind a rack, right at a turn. It keeps driving on wheel encoders and a gyro inside a Kalman filter. If a sensor fails during the blackout, nobody can see it, except the robot itself: it compares the gyro's turn with the wheels' turn and slows down only when they disagree.</p>
+  <div class="cta"><a class="btn primary" href="demo.html">Launch the viva demo</a><a class="btn" href="#results">See the results</a><a class="btn ghost" href="https://github.com/pushkar1887/co_res/blob/main/PLAN.md" target="_blank" rel="noopener">Read the plan</a></div>
+</section>
+
+<div class="wrap">
+  <div class="kpis">
+    <div class="kpi"><div class="v" style="color:#60a5fa">−0.19 mm</div><div class="l">Selective vs blanket slowdown under a gyro fault</div><div class="s">SA − SB peak error, 95% CI [−0.51, +0.19]: as safe</div></div>
+    <div class="kpi"><div class="v" style="color:#34d399">2.6 s</div><div class="l">Saved on every healthy 4 s blackout</div><div class="s">SB always slows; SA does not (predicted 2.59 s)</div></div>
+    <div class="kpi"><div class="v" style="color:#f87171">31 mm</div><div class="l">Error prevented vs never slowing</div><div class="s">Never-slow robot leaves the ±30 mm lane in 97–100% of runs</div></div>
+    <div class="kpi"><div class="v" style="color:#c4b5fd">0.002 mm</div><div class="l">ESP32 matches the simulator</div><div class="s">Float32 firmware in Wokwi, 706 steps, identical alarms</div></div>
+  </div>
+
+  <div class="section">
+    <h2>How it works</h2>
+    <p>One simulated robot, four speed policies, the same seed and noise. Only the decision to slow down differs.</p>
+    <div class="steps">
+      <div class="step"><div class="n" style="background:#14532d;color:#86efac">1</div><h4>Camera tracks the robot</h4><p>An overhead camera reports position 10× per second; an EKF fuses it with wheel encoders and a gyro at 50 Hz.</p></div>
+      <div class="step"><div class="n" style="background:#7f1d1d;color:#fecaca">2</div><h4>Blackout at the turn</h4><p>A rack hides the robot for 0.5–4 s. The estimate now drifts with whatever error the onboard sensors carry.</p></div>
+      <div class="step"><div class="n" style="background:#1e3a8a;color:#bfdbfe">3</div><h4>Gyro vs wheels</h4><p>Both measure turning. Over a 2 s window their headings must agree within 0.6°; a fault breaks the agreement.</p></div>
+      <div class="step"><div class="n" style="background:#4c1d95;color:#ddd6fe">4</div><h4>Slow only if needed</h4><p>On disagreement the robot drops to 0.15 m/s until the camera returns. Healthy blackouts cost nothing.</p></div>
+    </div>
+  </div>
+
+  <div class="section" id="results">
+    <h2>Results</h2>
+    <p>About 11,000 simulated runs, pre-registered hypotheses, paired seeds. All provisional until the independent re-implementation (V9) passes.</p>
+    <div class="gallery">
+      <div class="fig"><img src="../figures/fig_policy_tradeoff.png" alt="policy trade-off"><div class="c"><b>Main result (F2).</b> Peak error vs time lost for 4 s blackouts: SA matches SB's safety under a fault and loses no time when healthy.</div></div>
+      <div class="fig"><img src="../figures/fig_viva_timeline.png" alt="viva timeline"><div class="c"><b>One blackout, two worlds (F10).</b> Healthy vs gyro fault: camera, lane error, gyro–encoder disagreement and wheel speeds.</div></div>
+      <div class="fig"><img src="../figures/fig_fault_map.png" alt="fault map"><div class="c"><b>Which fault hurts where (F6).</b> Gyro drift hurts everywhere; wrong wheel size only in turns; dead reckoning fails on long blackouts.</div></div>
+      <div class="fig"><img src="../figures/fig_detection_regret.png" alt="detection regret"><div class="c"><b>Theory vs simulation (F3).</b> Detection delay follows h/b and SA stays within 1.5 mm of an oracle for every fault size.</div></div>
+      <div class="fig"><img src="../figures/fig_estimators_short_gaps.png" alt="short gaps"><div class="c"><b>Short gaps (F5).</b> Dead reckoning ≈ EKF in tracking; the EKF wins 5–7× on estimate error and steering smoothness.</div></div>
+      <div class="fig"><img src="../figures/fig_burstiness.png" alt="burstiness"><div class="c"><b>Burstiness (F9).</b> At the same 10% loss rate, longer bursts hurt only the robot without onboard sensors.</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Experiments</h2>
+    <table class="plain">
+      <tr><th>Part</th><th>Question</th><th>Runs</th><th>Answer (provisional)</th></tr>
+      <tr><td>V</td><td>Is the simulator correct?</td><td>~150 / pass</td><td>All checks pass; timestep 0.001 mm; drift formula within 4%</td></tr>
+      <tr><td>A</td><td>Short gaps: hold vs dead reckoning vs EKF</td><td>1,080</td><td>DR ≈ EKF in tracking; EKF far smoother</td></tr>
+      <tr><td>CAL</td><td>Freeze the monitor threshold</td><td>960</td><td>Monitor v1 failed (kill criterion), v2: 0 false alarms</td></tr>
+      <tr><td>B0</td><td>Main test: selective vs blanket slowdown</td><td>960</td><td>All four primary hypotheses supported</td></tr>
+      <tr><td>B · C · D · S</td><td>Faults × onsets, scaling, burstiness, sensitivity</td><td>8,560</td><td>Holds everywhere; wheel-size error needs calibration, not slowing</td></tr>
+      <tr><td>V8</td><td>Does it run on a microcontroller?</td><td>2 traces</td><td>ESP32 (Wokwi) parity PASS</td></tr>
+    </table>
+  </div>
+</div>
+<footer class="foot">All data is simulated (assumed MEMS-class sensors). Plan, discussion log and run log: <a href="https://github.com/pushkar1887/co_res/blob/main/PLAN.md">PLAN.md</a>. Built by Pushkar with Claude and Codex.</footer>
 </body>
 </html>

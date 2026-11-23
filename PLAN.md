@@ -502,7 +502,7 @@ co_res/
 ├── web/
 │   ├── index.html                [x] M4  links to demo + batch
 │   ├── batch.html, batch.js      [x] M2  one click: run a grid, save into results/
-│   ├── demo.html, demo.js        [x] M4  viva demo (plain canvas, offline) + ESP32 trace export + F10 data
+│   ├── demo.html, demo.js        [x] M4  viva demo v2: two follow-cams, EKF ghost + 2σ ellipse, gauges, story/presenter mode, ESP32 export
 │   └── style.css                 [x] M4
 ├── tools/
 │   ├── serve.py                  [x] M1  local server; POST /save writes only into results/ and the 3 generated firmware headers
@@ -1031,3 +1031,28 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   1. In a hidden browser pane, Chromium throttled the simulation to a few % of real time. Visible, it ran at about 99%.
   2. **Not tested by me:** the fault-injection button during pass 1. Try it live in the viva (§0).
 - **Meaning:** the estimator, monitor and policy run on a microcontroller in float32 and reproduce the browser simulation to micrometres, with identical alarm decisions. That's the "embedded port verified" claim of C4. **M4 is complete.** Remaining: V9 (Codex) and the paper.
+
+**2026-11-23 · Claude · web v2: viva demo, landing page, batch runner redesign (no new experiment runs)**
+- **What:**
+  - **`web/demo.html` + `demo.js`, rebuilt as a presentation console:**
+    - Two follow-cameras compare any pair of policies on the same seed, blackout and fault. The default is N vs. SA.
+    - The view is a warehouse floor with racks ("Rack A blocks the camera"), aisle tape, the ±30 mm lane and the camera-blind zone.
+    - The true robot leaves a trail coloured by lane error. The EKF estimate is drawn as a ghost robot with its 2σ position ellipse, which visibly grows during the blackout.
+    - Live gauges show speed, lane error and gyro-vs-encoder disagreement against the 0.6° threshold. Banners distinguish SA slowing, SB's blanket rule, and N ignoring the alarm.
+    - Side panels: an overview map with the overhead camera's line of sight, a race along the route, and an outcome table.
+    - A cached timeline (camera, alarm, lane error for all policies, residual D) with drag-to-scrub.
+    - A **story** list built from the run: blackout, fault, alarm, lane exits, camera back, result.
+    - **Presenter mode** pauses at every event.
+    - Keyboard: Space, ←/→, R, P, 1–6. Six scenario presets.
+  - **`web/index.html`:** landing page with a hero, headline numbers (B0, V8), a how-it-works explainer, the figure gallery (F2, F10, F6, F3, F5, F9) and the experiment table.
+  - **`web/batch.html`:** restyled. **`web/style.css`:** shared dark theme.
+- **Why:** user request for a professional, final-form viva demo. Internet is available in the viva, so the page loads the Inter and JetBrains Mono web fonts. The simulator stays dependency-free.
+- **Where:** `web/`. The test hook `window.__advance(sec)` steps playback without animation frames.
+- **Result:**
+  - **Presenter mode stops at each event in order** (gyro +1°/s, 4 s from entry, seed 1): 7.10 blackout → 7.60 fault → 8.04 alarm → 10.36 N leaves the lane → 11.10 camera back → 14.10 result.
+  - **All six presets run** and their verdicts match the experiments:
+    - healthy: SA loses 0.02 s, SB 2.60 s;
+    - gyro +1°/s: N out at 48.6 mm, SA 16.9 mm;
+    - wheels +3%: every policy leaves the lane (known limitation).
+  - All landing-page figures load.
+- **Meaning:** the viva can be run as a narrated story. Each claim in the paper has a visible moment in the demo, with numbers computed live by the same simulator.

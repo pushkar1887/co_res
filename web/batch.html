@@ -3,18 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Batch runner: camera-blackout experiments</title>
-<style>
-  body { font: 14px/1.45 system-ui, sans-serif; margin: 24px; max-width: 820px; }
-  button { font: inherit; padding: 6px 14px; margin: 0 6px 6px 0; }
-  #log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 6px; min-height: 120px; }
-</style>
+<title>Batch runner · camera-blackout experiments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h1>Batch runner</h1>
-<p>Runs a grid from <code>PLAN.md</code> §7 in a Web Worker and saves the files into <code>results/</code> through <code>tools/serve.py</code>. All data is simulated.</p>
-<div id="buttons"></div>
-<div id="log"></div>
+<header class="topbar">
+  <div class="brand"><div class="logo"></div><div>Consistency-gated slowdown<small>Batch runner · experiment grids of PLAN.md §7</small></div></div>
+  <nav class="nav"><a href="index.html">Overview</a><a href="demo.html">Viva demo</a><a class="active" href="batch.html">Batch runner</a><a href="https://github.com/pushkar1887/co_res" target="_blank" rel="noopener">GitHub</a></nav>
+</header>
+<div class="wrap" style="padding-top:22px">
+  <p class="muted">Each button runs one grid in a background Web Worker with the same simulator as the demo, then saves <code>runs.csv</code> and <code>meta.json</code> into <code>results/&lt;experiment&gt;/</code> through <code>tools/serve.py</code> (or downloads them without the server). Runs are deterministic: the same code gives the same numbers.</p>
+  <div class="batch-grid" id="buttons"></div>
+  <div id="log"></div>
+</div>
 <script type="module" src="batch.js"></script>
 </body>
 </html>
