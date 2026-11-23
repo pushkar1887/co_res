@@ -21,7 +21,8 @@ const ARMS = {
 const ORDER = ['N', 'SB', 'SA', 'SO', 'dr'];
 const PRESETS = [
   { id: 'none', label: 'Healthy sensors', fault: { kind: 'none' }, chip: null },
-  { id: 'gyro1', label: 'Gyro drift +1°/s', fault: { kind: 'gyro', b: 1.0 }, chip: 'GYRO DRIFT +1°/s' },
+  { id: 'gyro15', label: 'Gyro drift +1.5°/s', fault: { kind: 'gyro', b: 1.5 }, chip: 'GYRO DRIFT +1.5°/s' },   // Part C2 grid; largest fault SA still keeps in the lane (mean 23.8 mm)
+  { id: 'gyro1', label: 'Gyro drift +1°/s', fault: { kind: 'gyro', b: 1.0 }, chip: 'GYRO DRIFT +1°/s' },        // B0 headline condition
   { id: 'gyro05', label: 'Gyro drift +0.5°/s', fault: { kind: 'gyro', b: 0.5 }, chip: 'GYRO DRIFT +0.5°/s' },
   { id: 'slip', label: 'Wheel slip', fault: { kind: 'slip' }, chip: 'RIGHT WHEEL SLIPPING' },
   { id: 'scale3', label: 'Wheels 3% too big', fault: { kind: 'scale', eps: 0.03 }, chip: 'WHEELS 3% TOO BIG' },
@@ -37,7 +38,7 @@ const RACKS = [
 const CAMERA_POS = [1.6, 2.4];
 
 const $ = (id) => document.getElementById(id);
-const st = { preset: 'gyro1', Tb: 4, onset: 'entry', seed: 1, T: 0, playing: false, speed: 1, presenter: false,
+const st = { preset: 'gyro15', Tb: 4, onset: 'entry', seed: 1, T: 0, playing: false, speed: 1, presenter: false,
   last: 0, sims: {}, W: null, tF: Infinity, t0: 0, t1: 1, events: [], cap: null, capUntil: 0, tlCache: null, dragging: false };
 
 // ---------------------------------------------------------------- simulation
@@ -210,6 +211,10 @@ function drawView(cv, arm) {
   for (let i = i0; i < s.i; i++) { const ae = Math.abs(L.e[i]), P = ae > CORR ? trail.r : ae > 0.015 ? trail.a : trail.g; P.moveTo(L.x[i], L.y[i]); P.lineTo(L.x[i + 1], L.y[i + 1]); }
   ctx.lineWidth = 3.2 * px; ctx.lineCap = 'round';
   for (const [key, col] of [['g', '#34d399'], ['a', '#f59e0b'], ['r', '#ef4444']]) { ctx.strokeStyle = col; ctx.stroke(trail[key]); }
+  // peak excursion so far: stays on screen after the camera returns and the EKF pulls the robot back
+  let iPk = i0, ePk = 0; for (let i = i0; i <= s.i; i++) if (Math.abs(L.e[i]) > ePk) { ePk = Math.abs(L.e[i]); iPk = i; }
+  if (ePk > 0.015) { const pc = ePk > CORR ? '#ef4444' : '#f59e0b'; ctx.fillStyle = pc; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2 * px;
+    ctx.beginPath(); ctx.arc(L.x[iPk], L.y[iPk], 5 * px, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
   // estimate: link, covariance ellipse (2 sigma), ghost
   if (arm !== 'hold') {
     ctx.strokeStyle = 'rgba(34,211,238,0.55)'; ctx.lineWidth = 1.2 * px; ctx.setLineDash([3 * px, 3 * px]); ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.xe, s.ye); ctx.stroke(); ctx.setLineDash([]);
@@ -227,6 +232,8 @@ function drawView(cv, arm) {
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 3.5 * px, 0, 2 * Math.PI); ctx.fill(); ctx.strokeStyle = ec; ctx.lineWidth = 1.5 * px; ctx.stroke();
   // ---- screen-space overlays
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (ePk > 0.015) { const X = w / 2 + (L.x[iPk] - cx) * k, Y = h / 2 - (L.y[iPk] - cy) * k;
+    if (X > 0 && X < w && Y > 0 && Y < h) pill(ctx, X + 8, Y + 4, `peak ${(ePk * 1e3).toFixed(0)} mm`, ePk > CORR ? '#7f1d1d' : '#78350f', '#fff', 'left', C ? 9.5 : 10.5); }
   { const X = w / 2 + (s.x - cx) * k, Y = h / 2 - (s.y - cy) * k;    // error label next to the robot centre
     pill(ctx, X + 8, Y - (C ? 30 : 34), `${s.e >= 0 ? '+' : '−'}${(ae * 1e3).toFixed(1)} mm`, 'rgba(7,11,20,0.82)', ec, 'left', C ? 10 : 11); }
   ctx.font = `700 ${C ? 9 : 10}px Inter, system-ui, sans-serif`; ctx.fillStyle = 'rgba(148,163,184,0.55)';
@@ -283,14 +290,16 @@ function drawMini() {
   for (const [a, s] of pos) { const X = ox + (s.x - xmin) * k, Y = h - (s.y - ymin) * k; ctx.fillStyle = ARMS[a].color; ctx.fillText(ARMS[a].name, X + 9, Y - 6); }
   const CX = ox + (CAMERA_POS[0] - xmin) * k, CY = h - (CAMERA_POS[1] - ymin) * k; ctx.fillStyle = '#9fb0cc'; ctx.fillText('overhead camera', CX - 40, CY - 12);
   // lateral error is mm-scale and invisible at map scale (~40 px/m), so the map carries a live readout of it
-  const bx = ox + 2, by0 = 4, rh = 15; ctx.fillStyle = 'rgba(7,11,20,0.85)'; rr(ctx, bx, by0, 128, 20 + rh * pos.length, 8); ctx.fill();
-  ctx.font = '600 9.5px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab'; ctx.fillText('LANE ERROR NOW (±30 mm)', bx + 8, by0 + 13);
+  const bx = ox + 2, by0 = 4, rh = 15; ctx.fillStyle = 'rgba(7,11,20,0.85)'; rr(ctx, bx, by0, 176, 20 + rh * pos.length, 8); ctx.fill();
+  ctx.font = '600 9px Inter, system-ui, sans-serif'; ctx.fillStyle = '#7d8eab'; ctx.fillText('LANE ERR, mm', bx + 8, by0 + 13); ctx.fillText('NOW', bx + 86, by0 + 13); ctx.fillText('PEAK', bx + 122, by0 + 13);
   pos.forEach(([a, s], j) => {
     const y = by0 + 28 + j * rh, ae = Math.abs(s.e), out = ae > CORR;
     ctx.fillStyle = ARMS[a].color; ctx.beginPath(); ctx.arc(bx + 12, y - 3.5, 4, 0, 2 * Math.PI); ctx.fill();
     ctx.font = '700 10.5px Inter, system-ui, sans-serif'; ctx.fillText(ARMS[a].name, bx + 21, y);
     ctx.font = '600 10.5px "JetBrains Mono", monospace'; ctx.fillStyle = out ? '#f87171' : ae > 0.015 ? '#fbbf24' : '#86efac';
-    ctx.fillText(`${(s.e * 1e3).toFixed(1).padStart(6)} mm${out ? ' OUT' : ''}`, bx + 44, y);
+    ctx.fillText(`${(s.e * 1e3).toFixed(1).padStart(6)}`, bx + 74, y);
+    const L = st.sims[a].run.log, i0 = Math.round(st.t0 * 50); let pk = 0; for (let i = i0; i <= s.i; i++) pk = Math.max(pk, Math.abs(L.e[i]));
+    ctx.fillStyle = pk > CORR ? '#f87171' : pk > 0.015 ? '#fbbf24' : '#86efac'; ctx.fillText(`${(pk * 1e3).toFixed(0).padStart(4)}${pk > CORR ? ' OUT' : ''}`, bx + 118, y);
   });
 }
 
@@ -436,7 +445,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowLeft') setT(st.T - (e.shiftKey ? 1 : 0.1));
   else if (e.key === 'r' || e.key === 'R') { setT(st.t0); st.playing = false; setPlayIcon(); }
   else if (e.key === 'p' || e.key === 'P') { st.presenter = !st.presenter; $('presenter').checked = st.presenter; }
-  else if (/^[1-6]$/.test(e.key)) { st.preset = PRESETS[+e.key - 1].id; syncPresets(); runAll(); }
+  else if (/^[1-7]$/.test(e.key)) { st.preset = PRESETS[+e.key - 1].id; syncPresets(); runAll(); }
 });
 
 // ---------------------------------------------------------------- tools (unchanged behaviour)

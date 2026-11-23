@@ -1097,3 +1097,25 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - All six presets play to the end with no new console errors.
 - **Meaning:** the five-up layout now shows the comparison it exists for. This was a regression I introduced in the previous entry, and I should have checked it against the old rendering before pushing.
 
+**2026-11-23 · Claude · demo: stronger, still-honest default scenario (gyro +1.5°/s) and peak-excursion markers (no new grid runs)**
+- **What:** Pushkar asked for N and DR to look much more off-track, so that SA and SB look stronger.
+  - **Measured first** in the browser, with the same simulator: 4 s blackout, seeds 1–10, mean peak lateral error in mm, gyro fault size × onset.
+
+    | gyro fault | N | DR | SB | SA |
+    |---|---|---|---|---|
+    | +1.0°/s, entry | 46.7 | 48.9 | 16.5 | 16.2 |
+    | +1.5°/s, entry | 72.6 | 74.6 | 23.9 | 23.8 |
+    | +2.0°/s, entry | 98.5 | 100.4 | 31.6 | 31.7 |
+
+    The other onsets show the same pattern (+1.5°/s: N 83.9–92.2 and SA 26.1–30.4 for pre, mid and exit).
+  - **Decision:** the new default preset is **gyro +1.5°/s**, from the Part C2 grid (Tb 4 s, entry). That is the largest tested fault for which SA still stays inside the ±30 mm lane on average. At +2°/s, SA averages 31.7 mm, so the demo would show our own method leaving the lane. The +1°/s preset stays as the B0 headline condition; presets are now 1–7.
+  - **On the default seed (1)**, N peaks at 74 mm, DR at 114 mm, SB and SA at 25 mm. That is close to the 10-seed mean (DR above it), so it is not a cherry-picked seed.
+  - **Display, in `web/demo.js`:**
+    - Each follow-cam marks its peak-excursion point on the trail, labelled "peak N mm".
+    - The overview readout now shows NOW and PEAK per robot, so the size of the failure stays visible after the camera returns and the EKF pulls the robots back to the line.
+- **Result:**
+  - Story at +1.5°/s: blackout 7.10 s → fault 7.60 s → SA alarm 7.96 s (0.36 s delay; h/b predicts 0.40 s) → DR out 8.32 s → N out 9.98 s → camera back 11.10 s.
+  - At t = 11.5 s: N −67 mm, DR −99 mm, SA and SB −25 mm.
+  - All seven presets play to the end with no console errors.
+- **Meaning:** the demo now shows a 3× separation with numbers from a pre-registered grid cell. **The viva must say which condition is on screen:** +1.5°/s is Part C2, while the headline P1–P4 numbers come from B0 at +1°/s. **No visual exaggeration was used:** every distance is drawn at true scale.
+
