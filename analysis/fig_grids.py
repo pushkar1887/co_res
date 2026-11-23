@@ -119,7 +119,8 @@ def burstiness():
     for b in bs:
         ax.text(b, 2, f"real: {100 * real.loc[b, 'rate'] / real.loc[b, 'tot']:.0f}%, L̄ {real.loc[b, 'mb']:.1f}", fontsize=6, ha="center", rotation=90)
     ax.axvspan(12, 20, color="red", alpha=0.08)
-    ax.text(16, 60, "under-sampled\n(see §20)", fontsize=7, ha="center")
+    nob = (df[(df.arm == "ekf") & (df.meanBurst == bs[-1])].lostSlots == 0).mean()      # share of runs whose window saw no burst
+    ax.text(16, 60, f"{100 * nob:.0f}% of runs" + chr(10) + "see no burst", fontsize=7, ha="center")
     ax.axhline(30, color="k", lw=0.6, ls="--")
     ax.set_xscale("log", base=2)
     ax.set_xticks(bs)
@@ -128,7 +129,7 @@ def burstiness():
     ax.set_ylabel("peak cross-track over route (mm)")
     ax.legend(fontsize=7)
     ax.grid(lw=0.3)
-    ax.set_title("D: Gilbert channel, R = 1 m, v = 0.5 m/s, 30 seeds", fontsize=9)
+    ax.set_title(f"D: Gilbert channel, R = 1 m, v = 0.5 m/s, {df.seed.nunique()} seeds", fontsize=9)
     save(fig, "fig_burstiness")
 
 

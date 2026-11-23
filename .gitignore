@@ -3,3 +3,5 @@ __pycache__/
 .env
 node_modules/
 .claude/
+# B.Tech report output (personal details are added by hand; department template)
+report/BTech_Report.*

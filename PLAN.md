@@ -1181,3 +1181,14 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
     - the demo plays all 7 presets with no console errors, with numbers identical to localhost (t = 11.5 s: N −66.7, DR −98.6, SA −24.9 mm; outcome N 74.5 OUT, SA 25.0 in, DR 114.0 OUT);
     - the batch page renders its 8 experiment buttons and its module Web Worker loads.
 
+**2026-11-23 · Claude · B.Tech report written into the department template (no new runs)**
+- **What:**
+  - Planned the report in `report.md`: title, framing, outline, figure and table map, key numbers, format rules.
+  - Generated it with `report/build_report.py`, which clones the template's own paragraph, heading, caption and table formatting, then uses Word (COM) to insert the figures, the 11 equations (LaTeX input) and the contents / figures / tables fields. Output: `report/BTech_Report.docx` + `.pdf`, 39 pages.
+  - New figures (`report/make_figures.py`): Figure 3.1, the system architecture, and Figure 5.1, the ESP32 replay fixture drawn from `firmware/esp32_wokwi/diagram.json`.
+- **Title:** *Consistency-Gated Speed Control for Warehouse Robots During Camera Blackouts: Analysis, Simulation and Embedded Validation.*
+- **Fix to an existing figure:** `fig_burstiness` (F9) was drawn from the corrected 100-seed Part D data, but its title still said "30 seeds" and it carried a stale "under-sampled (see §20)" note from the invalid run 1. Both labels now come from the data: "100 seeds", "25% of runs see no burst". Only the plot was redrawn; no runs.
+- **References:** 20 IEEE entries. 13 verified by DOI or title against OpenAlex; 2 flagged as database artefacts (the Gyrodometry year indexed as 2002; El-Sheimy's name stored differently) with matching DOIs and titles; 3 looked up by DOI for full author lists; plus the Wokwi website and this repository.
+- **Checks:** every page rendered and inspected; no blank pages; no leftover build markers or raw LaTeX; front matter numbered i–viii, chapters from 1; header filled with the short title.
+- **Left for Pushkar:** cover, declaration, certificate and acknowledgement fields; Appendix A; deleting the instruction box on page ii.
+
