@@ -1148,3 +1148,16 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
 - **Regression check, done this time on both paths:** 2550×1176 (views 706×260, wide path), 1920×1080 (496×260, compact), 1366×768 (330×210, compact), each at t = 9.0 s (banners showing) and t = 11.5 s (N and DR out of the lane). All seven presets were stepped through five time points at 1366 and at 2550 with no runtime errors.
 - **Meaning:** the robot, the lane and the gauges no longer compete for space at any screen size.
 
+**2026-11-23 · Claude · demo: taller views and a wider track window (display only, no new runs)**
+- **What:** Pushkar asked for more of the track ahead of and behind each robot (in the turn only a short piece was visible) and for the empty space under the grid to be used.
+  - `web/style.css`: the view-height cap rises from 260 to **360 px**. The formula `(100vh − 430)/2` is unchanged, so both rows still fit above the control bar at every size:
+    - 2550×1176 → 706×360 px;
+    - 1920×1080 → 496×325 px;
+    - 1366×768 stays at the 210 px minimum.
+  - `web/demo.js`: the track window is about 16% wider (0.62 → 0.72 m compact, 0.9 → 1.05 m wide). The robot glyph factor G is rescaled by the same ratio (0.32 → 0.37, 0.45 → 0.525), so the robot keeps its on-screen size.
+- **Result:**
+  - At 2550×1176 the visible track length is about 1.6× longer (taller box × wider window): the whole turn is visible at t = 9.2 s.
+  - N and DR are still clearly outside the ±30 mm lane: at 0.67 mm per px, DR's −98.6 mm is about 147 px from the centreline at 706 px wide.
+  - The views end above the timeline at 2550×1176 (991 < 1084 px) and above the control bar at 1920×1080 (904 < 1009 px).
+  - All seven presets stepped at five time points with no errors.
+

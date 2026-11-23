@@ -186,7 +186,7 @@ function drawView(cv, arm) {
   const C = w < 560;                                   // compact overlay when five views share the screen
   // Zoomed on the lane: ~0.62 m across in compact views (~800 px/m at 496 px), so the ±30 mm lane is ~48 px wide.
   // The robot glyph is drawn at G of its real 0.26 m size, or it would cover the lane; positions/errors stay true scale.
-  const k = w / (C ? 0.62 : 0.9), px = 1 / k, G = C ? 0.32 : 0.45;
+  const k = w / (C ? 0.72 : 1.05), px = 1 / k, G = C ? 0.37 : 0.525;   // window +16%; G rescaled so the glyph keeps its on-screen size
   // Camera follows the robot's REFERENCE point on the route, not the robot: the yellow centreline sits at the same
   // place in every view, so lateral error shows up as the robot being displaced from it (comparable across all five).
   const ref = route.point(Math.max(0, Math.min(route.total, s.s)));
