@@ -1,0 +1,24 @@
+:root { --fg: #1d2330; --muted: #5d6675; --line: #d9dee7; --bg: #ffffff; --panel: #f6f8fb; --blue: #2c6fb0; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); }
+header { padding: 12px 20px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 18px; margin: 0 0 2px; }
+header p { margin: 0; color: var(--muted); }
+main { padding: 14px 20px 28px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.controls label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+.controls select, .controls input[type=number] { font: inherit; padding: 3px 6px; }
+.controls input[type=number] { width: 64px; }
+button { font: inherit; padding: 5px 12px; border: 1px solid #aab3c2; border-radius: 6px; background: #fff; cursor: pointer; }
+button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.grid { display: grid; grid-template-columns: minmax(420px, 560px) 1fr; gap: 16px; margin-top: 14px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; }
+.card h2 { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+canvas { display: block; width: 100%; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.note { color: var(--muted); font-size: 12px; }
+#log { white-space: pre-wrap; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--panel); padding: 8px; border-radius: 6px; min-height: 40px; }
+a { color: var(--blue); }

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>co_res: camera blackouts at warehouse turns</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Camera blackouts at warehouse turns</h1>
+  <p>Simulated differential-drive robot: Pure Pursuit, EKF (encoders + gyro + camera), gyro–encoder consistency monitor. All data is simulated.</p>
+</header>
+<main>
+  <ul>
+    <li><a href="demo.html">Viva demo</a>: replay one blackout with every speed policy side by side; export the ESP32 traces.</li>
+    <li><a href="batch.html">Batch runner</a>: run the experiment grids of PLAN.md §7 and save the CSVs into <code>results/</code>.</li>
+  </ul>
+  <p class="note">Start the server with <code>python tools/serve.py</code> from the repo root, then open <code>http://localhost:8000/web/</code>. No internet connection is needed.</p>
+</main>
+</body>
+</html>

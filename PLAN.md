@@ -983,3 +983,20 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
 - **Why:** caught while re-reading the numbers to explain them.
 - **Where:** `results/b_fault_map/paired_tb4.csv` (contrast `SA-SB dev_mm`).
 - **Meaning:** no conclusion changes. The paper's trade-off section should state that on healthy blackouts SB buys at most a few mm, statistically unresolved, for 2.6 s per 4 s blackout.
+
+**2026-11-23 · Claude · M4 build: trace exporter, ESP32 firmware, viva demo (V8 pending)**
+- **What:**
+  1. `sim/trace_export.js` turns one simulated run into C headers: per 20 ms step the firmware's inputs (encoder count deltas, gyro sample, camera flag and pose) plus the browser reference **at the same timestamp** (pose after prediction, camera correction and steering; D; alarm; v, ω; wheel commands). The trace starts at t = 0, so the firmware calibrates the gyro bias itself (Codex review 1, F8).
+  2. `firmware/esp32_wokwi/`:
+     - `estimator.h`: float32 port of the EKF, monitor v2, Pure Pursuit and route, with integer-tick timing.
+     - `sketch.ino`: replays pass 1 "healthy" (with a fault-injection button), then pass 2 "gyro_fault", and prints V8 parity after each pass.
+     - `diagram.json`: ESP32 DevKitC-V4, 4 LEDs, 1 button. Pin names checked against Wokwi's board definition.
+     - Generated `sim_params.h`, `trace_healthy.h` and `trace_gyro_fault.h` (706 rows each, B0 primary cell, policy SA, seed 1).
+  3. `web/demo.html` + `demo.js` + `style.css` + `index.html`: viva demo.
+  4. `tools/serve.py` may now also write the three generated headers.
+- **Why:** M4 (PLAN §8, §13).
+- **Where:** files above. The demo is served at `http://localhost:<port>/web/demo.html` by `tools/serve.py`.
+- **Result:**
+  - **JS replay check: bit-exact.** Replaying each trace with the firmware's control flow (integer ticks; the simulator's own functions in double precision) gives max pose, heading, D and wheel-command differences of exactly 0, and 0 differing alarm rows, over 706 rows for both traces. So the trace carries every input the firmware needs, and the firmware's step order is right. Any V8 difference can now only come from float32 arithmetic or a mistake in the C++ port.
+  - **Demo, seed 1, 4 s blackout from entry, gyro +1°/s:** N 48.6 mm peak (breach); SB 17.2; SA 16.9 (alarm 0.44 s after the fault, 2.12 s lost); SO 17.0; DR 88.3 mm.
+- **Deviation from the plan:** the demo uses plain HTML `<canvas>`, not p5.js. p5 would need a CDN (internet) or a downloaded library; canvas works **offline**, which matters for a viva room, and needs no dependency. The visuals are the same. Codex can contest this in §19.

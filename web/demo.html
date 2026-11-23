@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viva demo: consistency-gated slowdown during camera blackouts</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Viva demo: slow down only when the sensors disagree</h1>
+  <p>Same seed, same camera blackout, same sensor noise. Only the speed policy differs. R = 1 m, v = 0.5 m/s. All data is simulated.</p>
+</header>
+<main>
+  <div class="controls">
+    <label>Fault
+      <select id="fault">
+        <option value="none">healthy</option>
+        <option value="gyro1" selected>gyro drift +1 °/s</option>
+        <option value="gyro05">gyro drift +0.5 °/s</option>
+        <option value="slip">right-wheel slip 10%</option>
+        <option value="scale3">both wheels 3% larger</option>
+        <option value="diff2">wheels −1% / +1%</option>
+      </select></label>
+    <label>Blackout <select id="Tb"><option value="2">2 s</option><option value="4" selected>4 s</option></select></label>
+    <label>Starts at <select id="onset"><option value="pre">straight</option><option value="entry" selected>turn entry</option><option value="mid">mid-turn</option><option value="exit">turn exit</option></select></label>
+    <label>Seed <input id="seed" type="number" min="1" max="999" value="1"></label>
+    <label>Path view lateral ×<select id="exag"><option>1</option><option>5</option><option selected>10</option><option>20</option></select></label>
+    <span id="armBoxes"></span>
+  </div>
+  <div class="controls" style="margin-top:8px">
+    <button id="play" class="primary">Play</button>
+    <button id="restart">Restart</button>
+    <label>Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+    <input id="scrub" type="range" min="0" max="1000" value="0" style="flex:1; min-width:200px">
+    <span id="clock" class="note"></span>
+  </div>
+  <div class="grid">
+    <div>
+      <div class="card"><h2>Path (true robot, lateral error exaggerated)</h2><canvas id="map" height="560"></canvas>
+        <div class="note" id="mapNote"></div></div>
+      <div class="card" style="margin-top:12px"><h2>Scores in the window (vs the same run without the blackout)</h2><table id="stats"></table>
+        <div class="note">excess = extra peak cross-track error caused by the blackout; breach = left the ±30 mm corridor.</div></div>
+    </div>
+    <div>
+      <div class="card"><h2>Camera reports · fault · alarm (SA)</h2><canvas id="cam" height="70"></canvas></div>
+      <div class="card" style="margin-top:10px"><h2>Cross-track error of the true robot (mm)</h2><canvas id="err" height="190"></canvas></div>
+      <div class="card" style="margin-top:10px"><h2>Monitor residual D of SA (°) — gyro vs encoder heading over 2 s</h2><canvas id="res" height="150"></canvas></div>
+      <div class="card" style="margin-top:10px"><h2>SA wheel speeds: commanded (dashed) vs actual (solid), m/s</h2><canvas id="motor" height="150"></canvas></div>
+      <div class="card" style="margin-top:10px"><h2>ESP32 / Wokwi and figure export</h2>
+        <button id="export">Export ESP32 traces</button>
+        <button id="example">Save viva example (figure F10)</button>
+        <div id="log" style="margin-top:8px"></div></div>
+    </div>
+  </div>
+</main>
+<script type="module" src="demo.js"></script>
+</body>
+</html>

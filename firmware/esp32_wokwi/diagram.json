@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "author": "co_res (Claude + Codex)",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-led", "id": "ledL", "top": -96, "left": 172, "attrs": { "color": "green", "label": "L wheel" } },
+    { "type": "wokwi-led", "id": "ledR", "top": -96, "left": 220, "attrs": { "color": "green", "label": "R wheel" } },
+    { "type": "wokwi-led", "id": "ledCam", "top": -96, "left": 268, "attrs": { "color": "blue", "label": "camera" } },
+    { "type": "wokwi-led", "id": "ledAlarm", "top": -96, "left": 316, "attrs": { "color": "red", "label": "alarm" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": -14, "left": 166, "rotate": 90, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": -14, "left": 214, "rotate": 90, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r3", "top": -14, "left": 262, "rotate": 90, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r4", "top": -14, "left": 310, "rotate": 90, "attrs": { "value": "220" } },
+    { "type": "wokwi-pushbutton", "id": "btn", "top": 140, "left": 190, "attrs": { "color": "red", "label": "inject gyro fault" } }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:25", "r1:2", "green", [] ],
+    [ "r1:1", "ledL:A", "green", [] ],
+    [ "ledL:C", "esp:GND.1", "black", [] ],
+    [ "esp:26", "r2:2", "green", [] ],
+    [ "r2:1", "ledR:A", "green", [] ],
+    [ "ledR:C", "esp:GND.1", "black", [] ],
+    [ "esp:27", "r3:2", "blue", [] ],
+    [ "r3:1", "ledCam:A", "blue", [] ],
+    [ "ledCam:C", "esp:GND.1", "black", [] ],
+    [ "esp:14", "r4:2", "red", [] ],
+    [ "r4:1", "ledAlarm:A", "red", [] ],
+    [ "ledAlarm:C", "esp:GND.1", "black", [] ],
+    [ "btn:1.l", "esp:13", "orange", [] ],
+    [ "btn:2.l", "esp:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}
