@@ -11,13 +11,13 @@ import os, re, shutil, sys, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(r'~\Downloads\Btech Report Template 1.docx')
-OUT_DOCX = os.path.join(ROOT, 'report', 'BTech_Report_v2.docx')
-OUT_PDF = os.path.join(ROOT, 'report', 'BTech_Report_v2.pdf')
+OUT_DOCX = os.path.join(ROOT, 'report', 'BTech_Report.docx')
+OUT_PDF = os.path.join(ROOT, 'report', 'BTech_Report.pdf')
 FIG = lambda name: os.path.join(ROOT, 'figures', name)
 RFIG = lambda name: os.path.join(ROOT, 'report', name)
 NAVY, SLATE = '1B365D', '334E68'
 TITLE = 'Selective Slowdown Under Camera Blackouts: Gating Speed on Gyro–Encoder Consistency'
-SHORT_TITLE = 'Selective Slowdown Under Camera Blackouts'
+SHORT_TITLE = 'Gyro–Encoder Consistency-Gated Slowdown'
 
 # --------------------------------------------------------------------------- XML helpers
 esc = lambda s: s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
