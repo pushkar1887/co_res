@@ -975,3 +975,11 @@ Entry format: date · who · commit. Then: **What** · **Why** · **Where** · *
   - **S3, α trade-off.** α = 0.2: SA 1.5 / SB 2.2 mm, time lost SA 2.39 / SB 2.96 s (healthy SB 2.96). α = 0.5: SA 16.9 / SB 17.3 mm, SA 1.50 / SB 1.86 s.
   - **Across all variants:** SA healthy time lost 0 s; SA − SB within ±0.7 mm; alarm delay 0.48–0.51 s.
 - **Meaning:** the main claim (SA as safe as SB, no healthy cost) is robust to 2× sensor noise, the steering rate and the speed cap. α sets the trade-off: smaller α means safer but slower, and SA keeps its zero healthy cost at every α.
+
+**2026-11-23 · Claude · correction to the Part B entry (no new runs)**
+- **What:** the Part B entry says "SA − SB paired $e_{dev}$: within ±2.4 mm in every fault × onset cell". That's imprecise.
+  - It holds for every **fault** cell: the largest |median| is 2.46 mm (wheels +3%, pre-entry onset).
+  - In the **healthy** cells, SA never slows (by design SA = N) while SB does. So SA − SB there measures what SB's unconditional slowing buys on a healthy blackout: entry −0.7, mid −2.0, pre +2.1, **exit +6.4 mm** (95% CI −3.2 to +13.6, which includes 0).
+- **Why:** caught while re-reading the numbers to explain them.
+- **Where:** `results/b_fault_map/paired_tb4.csv` (contrast `SA-SB dev_mm`).
+- **Meaning:** no conclusion changes. The paper's trade-off section should state that on healthy blackouts SB buys at most a few mm, statistically unresolved, for 2.6 s per 4 s blackout.
